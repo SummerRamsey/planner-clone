@@ -108,6 +108,10 @@ export default function App() {
   var [showDashboard, setShowDashboard] = useState(false)
   var [newCommentText, setNewCommentText] = useState("")
   var [showCalendar, setShowCalendar] = useState(false)
+  var [showSyncModal, setShowSyncModal] = useState(false)
+  var [syncExportCode, setSyncExportCode] = useState("")
+  var [syncImportCode, setSyncImportCode] = useState("")
+  var [syncMessage, setSyncMessage] = useState("")
 
   var [form, setForm] = useState({
     title: "",
@@ -125,19 +129,93 @@ export default function App() {
 
   useEffect(
     function() {
-      localStorage.setItem("planner-tasks-v3", JSON.stringify(tasks))
-      localStorage.setItem("planner-buckets", JSON.stringify(buckets))
-      localStorage.setItem("planner-dark", darkMode.toString())
+      localStorage.setItem(
+        "planner-tasks-v3",
+        JSON.stringify(tasks)
+      )
+      localStorage.setItem(
+        "planner-buckets",
+        JSON.stringify(buckets)
+      )
+      localStorage.setItem(
+        "planner-dark",
+        darkMode.toString()
+      )
     },
     [tasks, buckets, darkMode]
   )
 
   useEffect(
     function() {
-      localStorage.setItem("planner-current-bucket", currentBucketId)
+      localStorage.setItem(
+        "planner-current-bucket",
+        currentBucketId
+      )
     },
     [currentBucketId]
   )
+
+  var handleExport = function() {
+    var data = JSON.stringify({
+      tasks: tasks,
+      buckets: buckets,
+      darkMode: darkMode
+    })
+    var code = btoa(
+      unescape(encodeURIComponent(data))
+    )
+    setSyncExportCode(code)
+    setSyncImportCode("")
+    setSyncMessage("")
+    setShowSyncModal(true)
+  }
+
+  var handleImport = function() {
+    if (!syncImportCode.trim()) {
+      setSyncMessage("Please paste a sync code first!")
+      return
+    }
+    try {
+      var decoded = decodeURIComponent(
+        escape(atob(syncImportCode.trim()))
+      )
+      var data = JSON.parse(decoded)
+      if (data.tasks) {
+        setTasks(data.tasks)
+      }
+      if (data.buckets) {
+        setBuckets(data.buckets)
+      }
+      if (data.darkMode !== undefined) {
+        setDarkMode(data.darkMode)
+      }
+      setSyncMessage("Tasks imported successfully!")
+      setTimeout(function() {
+        setShowSyncModal(false)
+        setSyncMessage("")
+      }, 1500)
+    } catch(e) {
+      setSyncMessage(
+        "Invalid code. Copy the full code from your other device."
+      )
+    }
+  }
+
+  var handleCopyCode = function() {
+    navigator.clipboard.writeText(syncExportCode).then(
+      function() {
+        setSyncMessage(
+          "Copied! Now paste this on your other device."
+        )
+      }
+    ).catch(
+      function() {
+        setSyncMessage(
+          "Select all the code above and copy manually (Ctrl+C)"
+        )
+      }
+    )
+  }
 
   var updateForm = function(field, value) {
     var f = {
@@ -193,7 +271,9 @@ export default function App() {
       alert("You need at least one bucket!")
       return
     }
-    if (!window.confirm("Delete this bucket and all its tasks?")) {
+    if (!window.confirm(
+      "Delete this bucket and all its tasks?"
+    )) {
       return
     }
     var remaining = buckets.filter(
@@ -201,7 +281,9 @@ export default function App() {
     )
     setBuckets(remaining)
     setTasks(
-      tasks.filter(function(tk) { return tk.bucketId !== bid })
+      tasks.filter(
+        function(tk) { return tk.bucketId !== bid }
+      )
     )
     if (currentBucketId === bid) {
       setCurrentBucketId(remaining[0].id)
@@ -213,7 +295,10 @@ export default function App() {
     setBuckets(
       buckets.map(function(b) {
         if (b.id === editingBucketId) {
-          return { id: b.id, name: bucketFormName.trim() }
+          return {
+            id: b.id,
+            name: bucketFormName.trim()
+          }
         }
         return b
       })
@@ -283,7 +368,10 @@ export default function App() {
         tasks.map(function(tk) {
           if (tk.id === editingTask) {
             return makeTaskObj(
-              tk.id, tk.createdAt, tk.bucketId, form
+              tk.id,
+              tk.createdAt,
+              tk.bucketId,
+              form
             )
           }
           return tk
@@ -305,7 +393,9 @@ export default function App() {
   var deleteTask = function(id) {
     if (window.confirm("Delete this task?")) {
       setTasks(
-        tasks.filter(function(tk) { return tk.id !== id })
+        tasks.filter(
+          function(tk) { return tk.id !== id }
+        )
       )
       setViewingTask(null)
     }
@@ -328,7 +418,9 @@ export default function App() {
             pinned: tk.pinned,
             comments: tk.comments
           }
-          return makeTaskObj(tk.id, tk.createdAt, tk.bucketId, f)
+          return makeTaskObj(
+            tk.id, tk.createdAt, tk.bucketId, f
+          )
         }
         return tk
       })
@@ -352,7 +444,9 @@ export default function App() {
             pinned: !tk.pinned,
             comments: tk.comments
           }
-          return makeTaskObj(tk.id, tk.createdAt, tk.bucketId, f)
+          return makeTaskObj(
+            tk.id, tk.createdAt, tk.bucketId, f
+          )
         }
         return tk
       })
@@ -364,7 +458,7 @@ export default function App() {
     setTasks(
       tasks.map(function(tk) {
         if (tk.id === taskId) {
-          var newComments = (tk.comments || []).concat([{
+          var nc = (tk.comments || []).concat([{
             text: newCommentText,
             date: new Date().toLocaleString()
           }])
@@ -379,9 +473,11 @@ export default function App() {
             checklist: tk.checklist,
             assignee: tk.assignee,
             pinned: tk.pinned,
-            comments: newComments
+            comments: nc
           }
-          return makeTaskObj(tk.id, tk.createdAt, tk.bucketId, f)
+          return makeTaskObj(
+            tk.id, tk.createdAt, tk.bucketId, f
+          )
         }
         return tk
       })
@@ -393,12 +489,17 @@ export default function App() {
     setTasks(
       tasks.map(function(tk) {
         if (tk.id === taskId) {
-          var nc = tk.checklist.map(function(item, i) {
-            if (i === idx) {
-              return { text: item.text, done: !item.done }
+          var nc = tk.checklist.map(
+            function(item, i) {
+              if (i === idx) {
+                return {
+                  text: item.text,
+                  done: !item.done
+                }
+              }
+              return item
             }
-            return item
-          })
+          )
           var f = {
             title: tk.title,
             notes: tk.notes,
@@ -412,7 +513,9 @@ export default function App() {
             pinned: tk.pinned,
             comments: tk.comments
           }
-          return makeTaskObj(tk.id, tk.createdAt, tk.bucketId, f)
+          return makeTaskObj(
+            tk.id, tk.createdAt, tk.bucketId, f
+          )
         }
         return tk
       })
@@ -434,7 +537,9 @@ export default function App() {
   var removeChecklistItem = function(idx) {
     updateForm(
       "checklist",
-      form.checklist.filter(function(_, i) { return i !== idx })
+      form.checklist.filter(
+        function(_, i) { return i !== idx }
+      )
     )
   }
 
@@ -442,10 +547,15 @@ export default function App() {
     if (form.labels.indexOf(name) >= 0) {
       updateForm(
         "labels",
-        form.labels.filter(function(l) { return l !== name })
+        form.labels.filter(
+          function(l) { return l !== name }
+        )
       )
     } else {
-      updateForm("labels", form.labels.concat([name]))
+      updateForm(
+        "labels",
+        form.labels.concat([name])
+      )
     }
   }
 
@@ -468,31 +578,45 @@ export default function App() {
   }
 
   var bucketTasks = tasks.filter(
-    function(tk) { return tk.bucketId === currentBucketId }
+    function(tk) {
+      return tk.bucketId === currentBucketId
+    }
   )
 
-  var filteredTasks = bucketTasks.filter(function(tk) {
-    var q = searchQuery.toLowerCase()
-    var ms = tk.title.toLowerCase().indexOf(q) >= 0
-    if (!ms && tk.notes) {
-      ms = tk.notes.toLowerCase().indexOf(q) >= 0
+  var filteredTasks = bucketTasks.filter(
+    function(tk) {
+      var q = searchQuery.toLowerCase()
+      var ms = tk.title.toLowerCase().indexOf(q) >= 0
+      if (!ms && tk.notes) {
+        ms = tk.notes.toLowerCase().indexOf(q) >= 0
+      }
+      if (!ms && tk.assignee) {
+        ms = tk.assignee.toLowerCase().indexOf(q) >= 0
+      }
+      var mp = filterPriority === "All" ||
+        tk.priority === filterPriority
+      return ms && mp
     }
-    if (!ms && tk.assignee) {
-      ms = tk.assignee.toLowerCase().indexOf(q) >= 0
-    }
-    var mp = filterPriority === "All" || tk.priority === filterPriority
-    return ms && mp
-  })
+  )
 
-  var priorityOrder = { Urgent: 0, High: 1, Medium: 2, Low: 3 }
+  var priorityOrder = {
+    Urgent: 0,
+    High: 1,
+    Medium: 2,
+    Low: 3
+  }
 
   var sortTasks = function(taskList) {
-    var pinned = taskList.filter(function(t) { return t.pinned })
-    var unpinned = taskList.filter(function(t) { return !t.pinned })
-
+    var pinned = taskList.filter(
+      function(t) { return t.pinned }
+    )
+    var unpinned = taskList.filter(
+      function(t) { return !t.pinned }
+    )
     if (sortBy === "priority") {
       unpinned.sort(function(a, b) {
-        return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2)
+        return (priorityOrder[a.priority] || 2) -
+          (priorityOrder[b.priority] || 2)
       })
     } else if (sortBy === "dueDate") {
       unpinned.sort(function(a, b) {
@@ -505,7 +629,6 @@ export default function App() {
         return a.title.localeCompare(b.title)
       })
     }
-
     return pinned.concat(unpinned)
   }
 
@@ -513,22 +636,28 @@ export default function App() {
     if (!task.dueDate) { return false }
     var today = new Date()
     today.setHours(0, 0, 0, 0)
-    return new Date(task.dueDate) < today && task.column !== "Done"
+    return new Date(task.dueDate) < today &&
+      task.column !== "Done"
   }
 
   var isDueToday = function(task) {
     if (!task.dueDate) { return false }
     var todayStr = new Date().toISOString().split("T")[0]
-    return task.dueDate === todayStr && task.column !== "Done"
+    return task.dueDate === todayStr &&
+      task.column !== "Done"
   }
 
   var isDueSoon = function(task) {
     if (!task.dueDate) { return false }
-    if (isOverdue(task) || isDueToday(task)) { return false }
+    if (isOverdue(task) || isDueToday(task)) {
+      return false
+    }
     var today = new Date()
     today.setHours(0, 0, 0, 0)
-    var diff = (new Date(task.dueDate) - today) / (1000 * 60 * 60 * 24)
-    return diff <= 3 && diff > 0 && task.column !== "Done"
+    var diff = (new Date(task.dueDate) - today) /
+      (1000 * 60 * 60 * 24)
+    return diff <= 3 && diff > 0 &&
+      task.column !== "Done"
   }
 
   var getProgress = function(task) {
@@ -538,7 +667,9 @@ export default function App() {
     var done = task.checklist.filter(
       function(c) { return c.done }
     ).length
-    return Math.round((done / task.checklist.length) * 100)
+    return Math.round(
+      (done / task.checklist.length) * 100
+    )
   }
 
   var totalTasks = bucketTasks.length
@@ -549,9 +680,10 @@ export default function App() {
     function(tk) { return isOverdue(tk) }
   ).length
   var dueSoonTasks = bucketTasks.filter(
-    function(tk) { return isDueSoon(tk) || isDueToday(tk) }
+    function(tk) {
+      return isDueSoon(tk) || isDueToday(tk)
+    }
   ).length
-
   var allTotal = tasks.length
   var allCompleted = tasks.filter(
     function(tk) { return tk.column === "Done" }
@@ -586,7 +718,8 @@ export default function App() {
     modalBg: "white"
   }
 
-  var statsText = "📊" + totalTasks + " | ✅" + completedTasks
+  var statsText = "📊" + totalTasks +
+    " | ✅" + completedTasks
   if (overdueTasks > 0) {
     statsText = statsText + " | ⚠️" + overdueTasks
   }
@@ -631,12 +764,16 @@ export default function App() {
             alignItems: "center",
             flexWrap: "wrap"
           }}>
-            <span style={{ fontSize: "12px", opacity: 0.8 }}>
+            <span style={{
+              fontSize: "12px",
+              opacity: 0.8
+            }}>
               {statsText}
             </span>
             <button
               onClick={function() {
                 setShowDashboard(!showDashboard)
+                setShowCalendar(false)
               }}
               style={{
                 background: "rgba(255,255,255,0.2)",
@@ -653,6 +790,7 @@ export default function App() {
             <button
               onClick={function() {
                 setShowCalendar(!showCalendar)
+                setShowDashboard(false)
               }}
               style={{
                 background: "rgba(255,255,255,0.2)",
@@ -667,7 +805,23 @@ export default function App() {
               🗓️ Calendar
             </button>
             <button
-              onClick={function() { setDarkMode(!darkMode) }}
+              onClick={handleExport}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "none",
+                borderRadius: "6px",
+                padding: "5px 10px",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "12px"
+              }}
+            >
+              🔄 Sync
+            </button>
+            <button
+              onClick={function() {
+                setDarkMode(!darkMode)
+              }}
               style={{
                 background: "rgba(255,255,255,0.2)",
                 border: "none",
@@ -692,9 +846,10 @@ export default function App() {
         }}>
           {buckets.map(function(b) {
             var isActive = b.id === currentBucketId
-            var bColor = getBucketColor(b.id)
-            var bucketTaskCount = tasks.filter(
-              function(tk) { return tk.bucketId === b.id }
+            var bCount = tasks.filter(
+              function(tk) {
+                return tk.bucketId === b.id
+              }
             ).length
             return (
               <div
@@ -717,7 +872,9 @@ export default function App() {
                     border: "none",
                     cursor: "pointer",
                     fontSize: "13px",
-                    fontWeight: isActive ? "bold" : "normal",
+                    fontWeight: isActive
+                      ? "bold"
+                      : "normal",
                     background: isActive
                       ? "rgba(255,255,255,0.3)"
                       : "rgba(255,255,255,0.1)",
@@ -730,13 +887,18 @@ export default function App() {
                     fontSize: "11px",
                     opacity: 0.7
                   }}>
-                    ({bucketTaskCount})
+                    ({bCount})
                   </span>
                 </button>
                 {isActive && (
-                  <div style={{ display: "flex", gap: "2px" }}>
+                  <div style={{
+                    display: "flex",
+                    gap: "2px"
+                  }}>
                     <button
-                      onClick={function() { openBucketModal(b) }}
+                      onClick={function() {
+                        openBucketModal(b)
+                      }}
                       style={{
                         background: "none",
                         border: "none",
@@ -749,7 +911,9 @@ export default function App() {
                       ✏️
                     </button>
                     <button
-                      onClick={function() { deleteBucket(b.id) }}
+                      onClick={function() {
+                        deleteBucket(b.id)
+                      }}
                       style={{
                         background: "none",
                         border: "none",
@@ -767,7 +931,9 @@ export default function App() {
             )
           })}
           <button
-            onClick={function() { openBucketModal(null) }}
+            onClick={function() {
+              openBucketModal(null)
+            }}
             style={{
               padding: "7px 12px",
               borderRadius: "8px",
@@ -801,98 +967,66 @@ export default function App() {
             flexWrap: "wrap",
             marginBottom: "16px"
           }}>
-            <div style={{
-              background: darkMode ? "#1a1a3e" : "white",
-              padding: "16px",
-              borderRadius: "10px",
-              flex: "1",
-              minWidth: "120px",
-              textAlign: "center",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
-            }}>
-              <div style={{ fontSize: "28px", fontWeight: "bold" }}>
-                {allTotal}
-              </div>
-              <div style={{
-                fontSize: "13px",
-                color: th.subtext
-              }}>
-                Total Tasks
-              </div>
-            </div>
-            <div style={{
-              background: darkMode ? "#1a1a3e" : "white",
-              padding: "16px",
-              borderRadius: "10px",
-              flex: "1",
-              minWidth: "120px",
-              textAlign: "center",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
-            }}>
-              <div style={{
-                fontSize: "28px",
-                fontWeight: "bold",
+            {[
+              {
+                label: "Total Tasks",
+                value: allTotal,
+                color: th.text
+              },
+              {
+                label: "Completed",
+                value: allCompleted,
                 color: "#4caf50"
-              }}>
-                {allCompleted}
-              </div>
-              <div style={{
-                fontSize: "13px",
-                color: th.subtext
-              }}>
-                Completed
-              </div>
-            </div>
-            <div style={{
-              background: darkMode ? "#1a1a3e" : "white",
-              padding: "16px",
-              borderRadius: "10px",
-              flex: "1",
-              minWidth: "120px",
-              textAlign: "center",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
-            }}>
-              <div style={{
-                fontSize: "28px",
-                fontWeight: "bold",
-                color: allOverdue > 0 ? "#f44336" : th.text
-              }}>
-                {allOverdue}
-              </div>
-              <div style={{
-                fontSize: "13px",
-                color: th.subtext
-              }}>
-                Overdue
-              </div>
-            </div>
-            <div style={{
-              background: darkMode ? "#1a1a3e" : "white",
-              padding: "16px",
-              borderRadius: "10px",
-              flex: "1",
-              minWidth: "120px",
-              textAlign: "center",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
-            }}>
-              <div style={{
-                fontSize: "28px",
-                fontWeight: "bold",
+              },
+              {
+                label: "Overdue",
+                value: allOverdue,
+                color: allOverdue > 0
+                  ? "#f44336"
+                  : th.text
+              },
+              {
+                label: "Complete",
+                value: allTotal > 0
+                  ? Math.round(
+                    (allCompleted / allTotal) * 100
+                  ) + "%"
+                  : "0%",
                 color: "#0078d4"
-              }}>
-                {allTotal > 0
-                  ? Math.round((allCompleted / allTotal) * 100)
-                  : 0}%
-              </div>
-              <div style={{
-                fontSize: "13px",
-                color: th.subtext
-              }}>
-                Complete
-              </div>
-            </div>
+              }
+            ].map(function(stat) {
+              return (
+                <div
+                  key={stat.label}
+                  style={{
+                    background: darkMode
+                      ? "#1a1a3e"
+                      : "white",
+                    padding: "16px",
+                    borderRadius: "10px",
+                    flex: "1",
+                    minWidth: "120px",
+                    textAlign: "center",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
+                  }}
+                >
+                  <div style={{
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    color: stat.color
+                  }}>
+                    {stat.value}
+                  </div>
+                  <div style={{
+                    fontSize: "13px",
+                    color: th.subtext
+                  }}>
+                    {stat.label}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-
           <h3 style={{
             margin: "0 0 10px 0",
             fontSize: "15px"
@@ -906,10 +1040,14 @@ export default function App() {
           }}>
             {buckets.map(function(b) {
               var bt = tasks.filter(
-                function(tk) { return tk.bucketId === b.id }
+                function(tk) {
+                  return tk.bucketId === b.id
+                }
               )
               var bd = bt.filter(
-                function(tk) { return tk.column === "Done" }
+                function(tk) {
+                  return tk.column === "Done"
+                }
               ).length
               var pct = bt.length > 0
                 ? Math.round((bd / bt.length) * 100)
@@ -918,7 +1056,9 @@ export default function App() {
                 <div
                   key={b.id}
                   style={{
-                    background: darkMode ? "#1a1a3e" : "white",
+                    background: darkMode
+                      ? "#1a1a3e"
+                      : "white",
                     padding: "12px",
                     borderRadius: "8px",
                     minWidth: "140px",
@@ -941,7 +1081,9 @@ export default function App() {
                     {bd}/{bt.length} done
                   </div>
                   <div style={{
-                    background: darkMode ? "#2a2a4a" : "#e0e0e0",
+                    background: darkMode
+                      ? "#2a2a4a"
+                      : "#e0e0e0",
                     borderRadius: "10px",
                     height: "8px",
                     overflow: "hidden"
@@ -989,17 +1131,23 @@ export default function App() {
           }}>
             {tasks.filter(
               function(tk) {
-                return tk.dueDate && tk.column !== "Done"
+                return tk.dueDate &&
+                  tk.column !== "Done"
               }
             ).sort(
               function(a, b) {
-                return new Date(a.dueDate) - new Date(b.dueDate)
+                return new Date(a.dueDate) -
+                  new Date(b.dueDate)
               }
             ).slice(0, 15).map(function(tk) {
               var bucket = buckets.find(
-                function(b) { return b.id === tk.bucketId }
+                function(b) {
+                  return b.id === tk.bucketId
+                }
               )
-              var bucketName = bucket ? bucket.name : "?"
+              var bName = bucket
+                ? bucket.name
+                : "?"
               return (
                 <div
                   key={tk.id}
@@ -1008,9 +1156,12 @@ export default function App() {
                     gap: "12px",
                     alignItems: "center",
                     padding: "10px 14px",
-                    background: darkMode ? "#1a1a3e" : "white",
+                    background: darkMode
+                      ? "#1a1a3e"
+                      : "white",
                     borderRadius: "8px",
-                    borderLeft: "4px solid " + priorityColors[tk.priority],
+                    borderLeft: "4px solid " +
+                      priorityColors[tk.priority],
                     boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
                   }}
                 >
@@ -1037,7 +1188,7 @@ export default function App() {
                       fontSize: "12px",
                       color: th.subtext
                     }}>
-                      {bucketName} → {tk.column}
+                      {bName} → {tk.column}
                     </div>
                   </div>
                   <span style={{
@@ -1054,7 +1205,8 @@ export default function App() {
             })}
             {tasks.filter(
               function(tk) {
-                return tk.dueDate && tk.column !== "Done"
+                return tk.dueDate &&
+                  tk.column !== "Done"
               }
             ).length === 0 && (
               <div style={{
@@ -1080,7 +1232,10 @@ export default function App() {
       }}>
         <input
           type="text"
-          placeholder={"🔍 Search in " + currentBucket.name + "..."}
+          placeholder={
+            "🔍 Search in " +
+            currentBucket.name + "..."
+          }
           value={searchQuery}
           onChange={function(e) {
             setSearchQuery(e.target.value)
@@ -1136,7 +1291,9 @@ export default function App() {
           <option value="name">Sort: Name</option>
         </select>
         <button
-          onClick={function() { openNewTask("To Do") }}
+          onClick={function() {
+            openNewTask("To Do")
+          }}
           style={{
             padding: "8px 20px",
             background: "#0078d4",
@@ -1161,7 +1318,9 @@ export default function App() {
       }}>
         {defaultColumns.map(function(column) {
           var colTasks = filteredTasks.filter(
-            function(tk) { return tk.column === column }
+            function(tk) {
+              return tk.column === column
+            }
           )
           colTasks = sortTasks(colTasks)
 
@@ -1169,7 +1328,9 @@ export default function App() {
             <div
               key={column}
               onDragOver={handleDragOver}
-              onDrop={function(e) { handleDrop(e, column) }}
+              onDrop={function(e) {
+                handleDrop(e, column)
+              }}
               style={{
                 background: th.columnBg,
                 borderRadius: "12px",
@@ -1196,7 +1357,9 @@ export default function App() {
                   {column}
                 </h2>
                 <span style={{
-                  background: darkMode ? "#2a2a4a" : "#ddd",
+                  background: darkMode
+                    ? "#2a2a4a"
+                    : "#ddd",
                   borderRadius: "50%",
                   width: "24px",
                   height: "24px",
@@ -1243,7 +1406,8 @@ export default function App() {
                         boxShadow: task.pinned
                           ? "0 2px 8px rgba(0,120,212,0.3)"
                           : "0 1px 4px rgba(0,0,0,0.08)",
-                        borderLeft: "4px solid " + priorityColors[task.priority],
+                        borderLeft: "4px solid " +
+                          priorityColors[task.priority],
                         cursor: "pointer",
                         border: overdue
                           ? "1px solid #f44336"
@@ -1268,36 +1432,39 @@ export default function App() {
                         </div>
                       )}
 
-                      {task.labels && task.labels.length > 0 && (
+                      {task.labels &&
+                        task.labels.length > 0 && (
                         <div style={{
                           display: "flex",
                           gap: "4px",
                           flexWrap: "wrap",
                           marginBottom: "6px"
                         }}>
-                          {task.labels.map(function(l) {
-                            var lo = defaultLabels.find(
-                              function(x) {
-                                return x.name === l
-                              }
-                            )
-                            return (
-                              <span
-                                key={l}
-                                style={{
-                                  fontSize: "10px",
-                                  padding: "2px 8px",
-                                  borderRadius: "10px",
-                                  color: "white",
-                                  background: lo
-                                    ? lo.color
-                                    : "#999"
-                                }}
-                              >
-                                {l}
-                              </span>
-                            )
-                          })}
+                          {task.labels.map(
+                            function(l) {
+                              var lo = defaultLabels.find(
+                                function(x) {
+                                  return x.name === l
+                                }
+                              )
+                              return (
+                                <span
+                                  key={l}
+                                  style={{
+                                    fontSize: "10px",
+                                    padding: "2px 8px",
+                                    borderRadius: "10px",
+                                    color: "white",
+                                    background: lo
+                                      ? lo.color
+                                      : "#999"
+                                  }}
+                                >
+                                  {l}
+                                </span>
+                              )
+                            }
+                          )}
                         </div>
                       )}
 
@@ -1391,7 +1558,9 @@ export default function App() {
                       )}
 
                       {progress !== null && (
-                        <div style={{ marginBottom: "6px" }}>
+                        <div style={{
+                          marginBottom: "6px"
+                        }}>
                           <div style={{
                             background: darkMode
                               ? "#2a2a4a"
@@ -1419,12 +1588,17 @@ export default function App() {
                         </div>
                       )}
 
-                      {task.comments && task.comments.length > 0 && !isExpanded && (
+                      {task.comments &&
+                        task.comments.length > 0 &&
+                        !isExpanded && (
                         <div style={{
                           fontSize: "11px",
                           color: th.subtext
                         }}>
-                          💬 {task.comments.length} comment{task.comments.length > 1 ? "s" : ""}
+                          💬 {task.comments.length} comment
+                          {task.comments.length > 1
+                            ? "s"
+                            : ""}
                         </div>
                       )}
 
@@ -1435,8 +1609,12 @@ export default function App() {
                           paddingTop: "10px"
                         }}>
                           {task.notes && (
-                            <div style={{ marginBottom: "10px" }}>
-                              <strong style={{ fontSize: "12px" }}>
+                            <div style={{
+                              marginBottom: "10px"
+                            }}>
+                              <strong style={{
+                                fontSize: "12px"
+                              }}>
                                 📝 Notes:
                               </strong>
                               <p style={{
@@ -1450,9 +1628,14 @@ export default function App() {
                             </div>
                           )}
 
-                          {task.checklist && task.checklist.length > 0 && (
-                            <div style={{ marginBottom: "10px" }}>
-                              <strong style={{ fontSize: "12px" }}>
+                          {task.checklist &&
+                            task.checklist.length > 0 && (
+                            <div style={{
+                              marginBottom: "10px"
+                            }}>
+                              <strong style={{
+                                fontSize: "12px"
+                              }}>
                                 ☑️ Checklist:
                               </strong>
                               {task.checklist.map(
@@ -1476,7 +1659,9 @@ export default function App() {
                                       }}
                                     >
                                       <span>
-                                        {item.done ? "✅" : "⬜"}
+                                        {item.done
+                                          ? "✅"
+                                          : "⬜"}
                                       </span>
                                       <span style={{
                                         textDecoration: item.done
@@ -1495,9 +1680,14 @@ export default function App() {
                             </div>
                           )}
 
-                          {task.comments && task.comments.length > 0 && (
-                            <div style={{ marginBottom: "10px" }}>
-                              <strong style={{ fontSize: "12px" }}>
+                          {task.comments &&
+                            task.comments.length > 0 && (
+                            <div style={{
+                              marginBottom: "10px"
+                            }}>
+                              <strong style={{
+                                fontSize: "12px"
+                              }}>
                                 💬 Comments:
                               </strong>
                               {task.comments.map(
@@ -1548,7 +1738,9 @@ export default function App() {
                               type="text"
                               value={newCommentText}
                               onChange={function(e) {
-                                setNewCommentText(e.target.value)
+                                setNewCommentText(
+                                  e.target.value
+                                )
                               }}
                               onKeyDown={function(e) {
                                 if (e.key === "Enter") {
@@ -1559,7 +1751,8 @@ export default function App() {
                               style={{
                                 flex: 1,
                                 padding: "6px 10px",
-                                border: "1px solid " + th.inputBorder,
+                                border: "1px solid " +
+                                  th.inputBorder,
                                 borderRadius: "4px",
                                 fontSize: "12px",
                                 background: th.inputBg,
@@ -1640,7 +1833,9 @@ export default function App() {
                                 cursor: "pointer"
                               }}
                             >
-                              {task.pinned ? "📌 Unpin" : "📌 Pin"}
+                              {task.pinned
+                                ? "📌 Unpin"
+                                : "📌 Pin"}
                             </button>
                             <button
                               onClick={function(e) {
@@ -1685,7 +1880,9 @@ export default function App() {
               </div>
 
               <button
-                onClick={function() { openNewTask(column) }}
+                onClick={function() {
+                  openNewTask(column)
+                }}
                 style={{
                   width: "100%",
                   padding: "8px",
@@ -1708,7 +1905,9 @@ export default function App() {
 
       {showModal && (
         <div
-          onClick={function() { setShowModal(false) }}
+          onClick={function() {
+            setShowModal(false)
+          }}
           style={{
             position: "fixed",
             top: 0,
@@ -1724,7 +1923,9 @@ export default function App() {
           }}
         >
           <div
-            onClick={function(e) { e.stopPropagation() }}
+            onClick={function(e) {
+              e.stopPropagation()
+            }}
             style={{
               background: th.modalBg,
               borderRadius: "12px",
@@ -1737,7 +1938,9 @@ export default function App() {
             }}
           >
             <h2 style={{ margin: "0 0 16px 0" }}>
-              {editingTask ? "✏️ Edit Task" : "➕ New Task"}
+              {editingTask
+                ? "✏️ Edit Task"
+                : "➕ New Task"}
             </h2>
 
             <label style={{
@@ -1846,7 +2049,10 @@ export default function App() {
                 <select
                   value={form.priority}
                   onChange={function(e) {
-                    updateForm("priority", e.target.value)
+                    updateForm(
+                      "priority",
+                      e.target.value
+                    )
                   }}
                   style={{
                     width: "100%",
@@ -1858,10 +2064,18 @@ export default function App() {
                     color: th.text
                   }}
                 >
-                  <option value="Urgent">🔴 Urgent</option>
-                  <option value="High">🟠 High</option>
-                  <option value="Medium">🟡 Medium</option>
-                  <option value="Low">🟢 Low</option>
+                  <option value="Urgent">
+                    🔴 Urgent
+                  </option>
+                  <option value="High">
+                    🟠 High
+                  </option>
+                  <option value="Medium">
+                    🟡 Medium
+                  </option>
+                  <option value="Low">
+                    🟢 Low
+                  </option>
                 </select>
               </div>
               <div style={{ flex: 1 }}>
@@ -1877,7 +2091,10 @@ export default function App() {
                 <select
                   value={form.column}
                   onChange={function(e) {
-                    updateForm("column", e.target.value)
+                    updateForm(
+                      "column",
+                      e.target.value
+                    )
                   }}
                   style={{
                     width: "100%",
@@ -1919,7 +2136,10 @@ export default function App() {
                   type="date"
                   value={form.startDate}
                   onChange={function(e) {
-                    updateForm("startDate", e.target.value)
+                    updateForm(
+                      "startDate",
+                      e.target.value
+                    )
                   }}
                   style={{
                     width: "100%",
@@ -1947,7 +2167,10 @@ export default function App() {
                   type="date"
                   value={form.dueDate}
                   onChange={function(e) {
-                    updateForm("dueDate", e.target.value)
+                    updateForm(
+                      "dueDate",
+                      e.target.value
+                    )
                   }}
                   style={{
                     width: "100%",
@@ -1987,12 +2210,18 @@ export default function App() {
                   cursor: "pointer",
                   background: form.pinned
                     ? "#ff9800"
-                    : (darkMode ? "#2a2a4a" : "#e0e0e0"),
-                  color: form.pinned ? "white" : th.subtext,
+                    : (darkMode
+                      ? "#2a2a4a"
+                      : "#e0e0e0"),
+                  color: form.pinned
+                    ? "white"
+                    : th.subtext,
                   fontSize: "13px"
                 }}
               >
-                {form.pinned ? "📌 Pinned" : "Not Pinned"}
+                {form.pinned
+                  ? "📌 Pinned"
+                  : "Not Pinned"}
               </button>
             </div>
 
@@ -2027,8 +2256,12 @@ export default function App() {
                       cursor: "pointer",
                       background: sel
                         ? l.color
-                        : (darkMode ? "#2a2a4a" : "#e0e0e0"),
-                      color: sel ? "white" : th.subtext
+                        : (darkMode
+                          ? "#2a2a4a"
+                          : "#e0e0e0"),
+                      color: sel
+                        ? "white"
+                        : th.subtext
                     }}
                   >
                     {l.name}
@@ -2133,7 +2366,9 @@ export default function App() {
               justifyContent: "flex-end"
             }}>
               <button
-                onClick={function() { setShowModal(false) }}
+                onClick={function() {
+                  setShowModal(false)
+                }}
                 style={{
                   padding: "10px 20px",
                   border: "1px solid " + th.inputBorder,
@@ -2159,7 +2394,9 @@ export default function App() {
                   fontWeight: "bold"
                 }}
               >
-                {editingTask ? "Save Changes" : "Create Task"}
+                {editingTask
+                  ? "Save Changes"
+                  : "Create Task"}
               </button>
             </div>
           </div>
@@ -2168,7 +2405,9 @@ export default function App() {
 
       {showBucketModal && (
         <div
-          onClick={function() { setShowBucketModal(false) }}
+          onClick={function() {
+            setShowBucketModal(false)
+          }}
           style={{
             position: "fixed",
             top: 0,
@@ -2184,7 +2423,9 @@ export default function App() {
           }}
         >
           <div
-            onClick={function(e) { e.stopPropagation() }}
+            onClick={function(e) {
+              e.stopPropagation()
+            }}
             style={{
               background: th.modalBg,
               borderRadius: "12px",
@@ -2267,7 +2508,206 @@ export default function App() {
                   fontWeight: "bold"
                 }}
               >
-                {editingBucketId ? "Save" : "Create Bucket"}
+                {editingBucketId
+                  ? "Save"
+                  : "Create Bucket"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSyncModal && (
+        <div
+          onClick={function() {
+            setShowSyncModal(false)
+          }}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px"
+          }}
+        >
+          <div
+            onClick={function(e) {
+              e.stopPropagation()
+            }}
+            style={{
+              background: th.modalBg,
+              borderRadius: "12px",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              color: th.text
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0" }}>
+              🔄 Sync Between Devices
+            </h2>
+
+            <div style={{
+              background: darkMode
+                ? "#0f3460"
+                : "#e3f2fd",
+              borderRadius: "8px",
+              padding: "16px",
+              marginBottom: "20px"
+            }}>
+              <h3 style={{
+                margin: "0 0 8px 0",
+                fontSize: "15px"
+              }}>
+                📤 Export from THIS device
+              </h3>
+              <p style={{
+                fontSize: "13px",
+                color: th.subtext,
+                margin: "0 0 10px 0"
+              }}>
+                Copy this code and paste it on your other device.
+              </p>
+              <textarea
+                readOnly={true}
+                value={syncExportCode}
+                onClick={function(e) {
+                  e.target.select()
+                }}
+                style={{
+                  width: "100%",
+                  height: "80px",
+                  padding: "8px",
+                  border: "1px solid " + th.inputBorder,
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontFamily: "monospace",
+                  background: th.inputBg,
+                  color: th.text,
+                  boxSizing: "border-box",
+                  resize: "none"
+                }}
+              />
+              <button
+                onClick={handleCopyCode}
+                style={{
+                  marginTop: "8px",
+                  padding: "8px 16px",
+                  background: "#0078d4",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "bold"
+                }}
+              >
+                📋 Copy Code
+              </button>
+            </div>
+
+            <div style={{
+              background: darkMode
+                ? "#1a3a1a"
+                : "#e8f5e9",
+              borderRadius: "8px",
+              padding: "16px",
+              marginBottom: "16px"
+            }}>
+              <h3 style={{
+                margin: "0 0 8px 0",
+                fontSize: "15px"
+              }}>
+                📥 Import from ANOTHER device
+              </h3>
+              <p style={{
+                fontSize: "13px",
+                color: th.subtext,
+                margin: "0 0 10px 0"
+              }}>
+                Paste the code from your other device here.
+              </p>
+              <textarea
+                value={syncImportCode}
+                onChange={function(e) {
+                  setSyncImportCode(e.target.value)
+                }}
+                placeholder="Paste sync code here..."
+                style={{
+                  width: "100%",
+                  height: "80px",
+                  padding: "8px",
+                  border: "1px solid " + th.inputBorder,
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontFamily: "monospace",
+                  background: th.inputBg,
+                  color: th.text,
+                  boxSizing: "border-box",
+                  resize: "none"
+                }}
+              />
+              <button
+                onClick={handleImport}
+                style={{
+                  marginTop: "8px",
+                  padding: "8px 16px",
+                  background: "#4caf50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "bold"
+                }}
+              >
+                📥 Import Tasks
+              </button>
+            </div>
+
+            {syncMessage && (
+              <div style={{
+                padding: "10px",
+                borderRadius: "6px",
+                background: darkMode
+                  ? "#2a2a4a"
+                  : "#f5f5f5",
+                textAlign: "center",
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginBottom: "12px"
+              }}>
+                {syncMessage}
+              </div>
+            )}
+
+            <div style={{
+              display: "flex",
+              justifyContent: "flex-end"
+            }}>
+              <button
+                onClick={function() {
+                  setShowSyncModal(false)
+                }}
+                style={{
+                  padding: "10px 20px",
+                  border: "1px solid " + th.inputBorder,
+                  borderRadius: "6px",
+                  background: th.cardBg,
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  color: th.text
+                }}
+              >
+                Close
               </button>
             </div>
           </div>
