@@ -11,16 +11,28 @@ const safeParse = (s, fallback) => {
   }
 };
 
-const encodeSync = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
-const decodeSync = (code) => JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+const encodeSync = (obj) =>
+  btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+
+const decodeSync = (code) =>
+  JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
 
 const yyyyMmDd = (d) => {
   const dt = new Date(d);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  return (
+    dt.getFullYear() +
+    "-" +
+    String(dt.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(dt.getDate()).padStart(2, "0")
+  );
 };
 
-const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
-const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+const startOfMonth = (d) =>
+  new Date(d.getFullYear(), d.getMonth(), 1);
+
+const addMonths = (d, n) =>
+  new Date(d.getFullYear(), d.getMonth() + n, 1);
 
 const getCalendarGrid = (monthDate) => {
   const first = startOfMonth(monthDate);
@@ -45,8 +57,8 @@ const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
 const COL_COLORS = {
   "To Do": "#DCC8F7",
   "In Progress": "#F7C2D4",
-  "Review": "#F6D7A9",
-  "Done": "#C8F0D7",
+  Review: "#F6D7A9",
+  Done: "#C8F0D7",
 };
 
 const DEFAULT_BUCKETS = [
@@ -58,8 +70,20 @@ const DEFAULT_BUCKETS = [
   { id: "other", name: "Other" },
 ];
 
-const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
-const PRIORITY_EMOJI = { Urgent: "💗", High: "❤️", Medium: "💜", Low: "💚" };
+const PRIORITY_ORDER = {
+  Urgent: 0,
+  High: 1,
+  Medium: 2,
+  Low: 3,
+};
+
+const PRIORITY_EMOJI = {
+  Urgent: "💗",
+  High: "❤️",
+  Medium: "💜",
+  Low: "💚",
+};
+
 const PRIORITY_COLORS = {
   Urgent: "#F7C2D4",
   High: "#F3B3B3",
@@ -86,49 +110,51 @@ const BUCKET_DOTS = {
 };
 
 export default function App() {
-  const [view, setView] = useState(
-    () => localStorage.getItem("p_view") || "dashboard"
-  );
-  const [buckets, setBuckets] = useState(
-    () => safeParse(localStorage.getItem("p_buckets"), DEFAULT_BUCKETS)
-  );
-  const [tasks, setTasks] = useState(
-    () => safeParse(localStorage.getItem("p_tasks"), [])
-  );
+  var [view, setView] = useState(function () {
+    return localStorage.getItem("p_view") || "dashboard";
+  });
 
-  // Collapsed state per bucket
-  const [collapsed, setCollapsed] = useState({});
+  var [buckets, setBuckets] = useState(function () {
+    return safeParse(
+      localStorage.getItem("p_buckets"),
+      DEFAULT_BUCKETS
+    );
+  });
 
-  // UI
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterPriority, setFilterPriority] = useState("All");
-  const [sortBy, setSortBy] = useState("none");
-  const [viewingTaskId, setViewingTaskId] = useState(null);
+  var [tasks, setTasks] = useState(function () {
+    return safeParse(
+      localStorage.getItem("p_tasks"),
+      []
+    );
+  });
 
-  // Modals
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState(null);
-  const [taskBucketId, setTaskBucketId] = useState(null);
+  var [collapsed, setCollapsed] = useState({});
+  var [searchQuery, setSearchQuery] = useState("");
+  var [filterPriority, setFilterPriority] = useState("All");
+  var [sortBy, setSortBy] = useState("none");
+  var [viewingTaskId, setViewingTaskId] = useState(null);
 
-  const [showBucketModal, setShowBucketModal] = useState(false);
-  const [bucketFormName, setBucketFormName] = useState("");
-  const [editingBucketId, setEditingBucketId] = useState(null);
+  var [showTaskModal, setShowTaskModal] = useState(false);
+  var [editingTaskId, setEditingTaskId] = useState(null);
+  var [taskBucketId, setTaskBucketId] = useState(null);
 
-  const [showSyncModal, setShowSyncModal] = useState(false);
-  const [syncExportCode, setSyncExportCode] = useState("");
-  const [syncImportCode, setSyncImportCode] = useState("");
-  const [syncMessage, setSyncMessage] = useState("");
+  var [showBucketModal, setShowBucketModal] = useState(false);
+  var [bucketFormName, setBucketFormName] = useState("");
+  var [editingBucketId, setEditingBucketId] = useState(null);
 
-  // Calendar
-  const [monthCursor, setMonthCursor] = useState(
-    () => startOfMonth(new Date())
-  );
-  const [selectedDay, setSelectedDay] = useState(
-    () => yyyyMmDd(new Date())
-  );
+  var [showSyncModal, setShowSyncModal] = useState(false);
+  var [syncExportCode, setSyncExportCode] = useState("");
+  var [syncImportCode, setSyncImportCode] = useState("");
+  var [syncMessage, setSyncMessage] = useState("");
 
-  // Task form
-  const [form, setForm] = useState({
+  var [monthCursor, setMonthCursor] = useState(function () {
+    return startOfMonth(new Date());
+  });
+  var [selectedDay, setSelectedDay] = useState(function () {
+    return yyyyMmDd(new Date());
+  });
+
+  var [form, setForm] = useState({
     title: "",
     notes: "",
     priority: "Medium",
@@ -142,95 +168,120 @@ export default function App() {
     comments: [],
   });
 
-  // Persist
   useEffect(
-    () => localStorage.setItem("p_view", view),
+    function () {
+      localStorage.setItem("p_view", view);
+    },
     [view]
   );
+
   useEffect(
-    () => localStorage.setItem("p_buckets", JSON.stringify(buckets)),
+    function () {
+      localStorage.setItem(
+        "p_buckets",
+        JSON.stringify(buckets)
+      );
+    },
     [buckets]
   );
+
   useEffect(
-    () => localStorage.setItem("p_tasks", JSON.stringify(tasks)),
+    function () {
+      localStorage.setItem(
+        "p_tasks",
+        JSON.stringify(tasks)
+      );
+    },
     [tasks]
   );
 
-  // Helpers
-  const isOverdue = (t) => {
+  var isOverdue = function (t) {
     if (!t.dueDate || t.column === "Done") return false;
-    const today = new Date();
+    var today = new Date();
     today.setHours(0, 0, 0, 0);
-    const due = new Date(t.dueDate);
+    var due = new Date(t.dueDate);
     due.setHours(0, 0, 0, 0);
     return due < today;
   };
 
-  const isDueToday = (t) =>
-    t.dueDate &&
-    yyyyMmDd(t.dueDate) === yyyyMmDd(new Date()) &&
-    t.column !== "Done";
+  var isDueToday = function (t) {
+    return (
+      t.dueDate &&
+      yyyyMmDd(t.dueDate) === yyyyMmDd(new Date()) &&
+      t.column !== "Done"
+    );
+  };
 
-  const isDueSoon = (t) => {
+  var isDueSoon = function (t) {
     if (!t.dueDate || t.column === "Done") return false;
     if (isOverdue(t) || isDueToday(t)) return false;
-    const today = new Date();
+    var today = new Date();
     today.setHours(0, 0, 0, 0);
-    const due = new Date(t.dueDate);
+    var due = new Date(t.dueDate);
     due.setHours(0, 0, 0, 0);
-    const diff = (due - today) / (1000 * 60 * 60 * 24);
+    var diff = (due - today) / (1000 * 60 * 60 * 24);
     return diff > 0 && diff <= 3;
   };
 
-  const getProgress = (t) => {
-    if (!t.checklist?.length) return null;
-    const done = t.checklist.filter((c) => c.done).length;
+  var getProgress = function (t) {
+    if (!t.checklist || t.checklist.length === 0)
+      return null;
+    var done = t.checklist.filter(function (c) {
+      return c.done;
+    }).length;
     return Math.round((done / t.checklist.length) * 100);
   };
 
-  const filterAndSort = (list) => {
-    const q = searchQuery.trim().toLowerCase();
-    let filtered = list.filter((t) => {
-      const ms =
+  var filterAndSort = function (list) {
+    var q = searchQuery.trim().toLowerCase();
+    var filtered = list.filter(function (t) {
+      var ms =
         !q ||
-        t.title.toLowerCase().includes(q) ||
-        (t.notes || "").toLowerCase().includes(q) ||
-        (t.assignee || "").toLowerCase().includes(q);
-      const mp =
-        filterPriority === "All" || t.priority === filterPriority;
+        t.title.toLowerCase().indexOf(q) >= 0 ||
+        (t.notes || "").toLowerCase().indexOf(q) >= 0 ||
+        (t.assignee || "").toLowerCase().indexOf(q) >= 0;
+      var mp =
+        filterPriority === "All" ||
+        t.priority === filterPriority;
       return ms && mp;
     });
 
-    const pinned = filtered.filter((t) => t.pinned);
-    const rest = filtered.filter((t) => !t.pinned);
+    var pinned = filtered.filter(function (t) {
+      return t.pinned;
+    });
+    var rest = filtered.filter(function (t) {
+      return !t.pinned;
+    });
 
     if (sortBy === "priority") {
-      rest.sort(
-        (a, b) =>
-          (PRIORITY_ORDER[a.priority] ?? 2) -
-          (PRIORITY_ORDER[b.priority] ?? 2)
-      );
+      rest.sort(function (a, b) {
+        return (
+          (PRIORITY_ORDER[a.priority] || 2) -
+          (PRIORITY_ORDER[b.priority] || 2)
+        );
+      });
     } else if (sortBy === "dueDate") {
-      rest.sort((a, b) => {
+      rest.sort(function (a, b) {
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return new Date(a.dueDate) - new Date(b.dueDate);
       });
     } else if (sortBy === "name") {
-      rest.sort((a, b) => a.title.localeCompare(b.title));
+      rest.sort(function (a, b) {
+        return a.title.localeCompare(b.title);
+      });
     }
 
-    return [...pinned, ...rest];
+    return pinned.concat(rest);
   };
 
-  // Sync
-  const openSync = () => {
+  var openSync = function () {
     setSyncExportCode(
       encodeSync({
         v: 1,
         exportedAt: new Date().toISOString(),
-        buckets,
-        tasks,
+        buckets: buckets,
+        tasks: tasks,
       })
     );
     setSyncImportCode("");
@@ -238,39 +289,43 @@ export default function App() {
     setShowSyncModal(true);
   };
 
-  const copySyncCode = async () => {
-    try {
-      await navigator.clipboard.writeText(syncExportCode);
-      setSyncMessage("✅ Copied! Paste it on your other device.");
-    } catch {
-      setSyncMessage(
-        "⚠️ Tap the code → Select All → Copy."
-      );
-    }
+  var copySyncCode = function () {
+    navigator.clipboard
+      .writeText(syncExportCode)
+      .then(function () {
+        setSyncMessage(
+          "✅ Copied! Paste it on your other device."
+        );
+      })
+      .catch(function () {
+        setSyncMessage(
+          "⚠️ Tap the code → Select All → Copy."
+        );
+      });
   };
 
-  const importSync = () => {
+  var importSync = function () {
     if (!syncImportCode.trim()) {
       setSyncMessage("⚠️ Paste a code first.");
       return;
     }
     try {
-      const data = decodeSync(syncImportCode);
-      if (Array.isArray(data.tasks)) setTasks(data.tasks);
+      var data = decodeSync(syncImportCode);
+      if (Array.isArray(data.tasks))
+        setTasks(data.tasks);
       if (Array.isArray(data.buckets))
         setBuckets(data.buckets);
       setSyncMessage("✅ Imported!");
-      setTimeout(() => {
+      setTimeout(function () {
         setShowSyncModal(false);
         setSyncMessage("");
       }, 1200);
-    } catch {
+    } catch (e) {
       setSyncMessage("❌ Invalid code.");
     }
   };
 
-  // Bucket CRUD
-  const openBucketEditor = (b) => {
+  var openBucketEditor = function (b) {
     if (b) {
       setEditingBucketId(b.id);
       setBucketFormName(b.name);
@@ -281,40 +336,52 @@ export default function App() {
     setShowBucketModal(true);
   };
 
-  const saveBucket = () => {
-    const name = bucketFormName.trim();
+  var saveBucket = function () {
+    var name = bucketFormName.trim();
     if (!name) return;
     if (editingBucketId) {
-      setBuckets((prev) =>
-        prev.map((b) =>
-          b.id === editingBucketId ? { ...b, name } : b
-        )
+      setBuckets(
+        buckets.map(function (b) {
+          if (b.id === editingBucketId) {
+            return { id: b.id, name: name };
+          }
+          return b;
+        })
       );
     } else {
-      const id = uid();
-      setBuckets((prev) => [...prev, { id, name }]);
+      var id = uid();
+      setBuckets(buckets.concat([{ id: id, name: name }]));
     }
     setShowBucketModal(false);
   };
 
-  const deleteBucket = (bid) => {
-    if (buckets.length <= 1)
-      return alert("You need at least one bucket.");
-    if (!confirm("Delete this bucket and all its tasks?"))
+  var deleteBucket = function (bid) {
+    if (buckets.length <= 1) {
+      alert("You need at least one project.");
       return;
-    setBuckets((prev) => prev.filter((b) => b.id !== bid));
-    setTasks((prev) => prev.filter((t) => t.bucketId !== bid));
+    }
+    if (!confirm("Delete this project and all its tasks?"))
+      return;
+    setBuckets(
+      buckets.filter(function (b) {
+        return b.id !== bid;
+      })
+    );
+    setTasks(
+      tasks.filter(function (t) {
+        return t.bucketId !== bid;
+      })
+    );
   };
 
-  // Task CRUD
-  const openNewTask = (bucketId, column = "To Do") => {
+  var openNewTask = function (bucketId, column) {
     setForm({
       title: "",
       notes: "",
       priority: "Medium",
       startDate: "",
       dueDate: "",
-      column,
+      column: column || "To Do",
       labels: [],
       checklist: [],
       assignee: "",
@@ -326,7 +393,7 @@ export default function App() {
     setShowTaskModal(true);
   };
 
-  const openEditTask = (t) => {
+  var openEditTask = function (t) {
     setForm({
       title: t.title,
       notes: t.notes || "",
@@ -345,119 +412,233 @@ export default function App() {
     setShowTaskModal(true);
   };
 
-  const upsertTask = () => {
-    if (!form.title.trim())
-      return alert("Please enter a task title.");
+  var upsertTask = function () {
+    if (!form.title.trim()) {
+      alert("Please enter a task title.");
+      return;
+    }
     if (editingTaskId) {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === editingTaskId ? { ...t, ...form } : t
-        )
+      setTasks(
+        tasks.map(function (t) {
+          if (t.id === editingTaskId) {
+            return {
+              id: t.id,
+              createdAt: t.createdAt,
+              bucketId: t.bucketId,
+              title: form.title,
+              notes: form.notes,
+              priority: form.priority,
+              startDate: form.startDate,
+              dueDate: form.dueDate,
+              column: form.column,
+              labels: form.labels,
+              checklist: form.checklist,
+              assignee: form.assignee,
+              pinned: form.pinned,
+              comments: form.comments,
+            };
+          }
+          return t;
+        })
       );
     } else {
-      setTasks((prev) => [
-        ...prev,
-        {
-          id: uid(),
-          createdAt: new Date().toISOString(),
-          bucketId: taskBucketId,
-          ...form,
-        },
-      ]);
+      setTasks(
+        tasks.concat([
+          {
+            id: uid(),
+            createdAt: new Date().toISOString(),
+            bucketId: taskBucketId,
+            title: form.title,
+            notes: form.notes,
+            priority: form.priority,
+            startDate: form.startDate,
+            dueDate: form.dueDate,
+            column: form.column,
+            labels: form.labels,
+            checklist: form.checklist,
+            assignee: form.assignee,
+            pinned: form.pinned,
+            comments: form.comments,
+          },
+        ])
+      );
     }
     setShowTaskModal(false);
     setEditingTaskId(null);
   };
 
-  const removeTask = (id) => {
+  var removeTask = function (id) {
     if (!confirm("Delete this task?")) return;
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTasks(
+      tasks.filter(function (t) {
+        return t.id !== id;
+      })
+    );
     setViewingTaskId(null);
   };
 
-  const moveTask = (id, column) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, column } : t))
-    );
-  };
-
-  const togglePin = (id) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, pinned: !t.pinned } : t
-      )
-    );
-  };
-
-  const toggleChecklist = (taskId, idx) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        const list = (t.checklist || []).map((c, i) =>
-          i === idx ? { ...c, done: !c.done } : c
-        );
-        return { ...t, checklist: list };
+  var moveTask = function (id, column) {
+    setTasks(
+      tasks.map(function (t) {
+        if (t.id === id) {
+          return {
+            id: t.id,
+            createdAt: t.createdAt,
+            bucketId: t.bucketId,
+            title: t.title,
+            notes: t.notes,
+            priority: t.priority,
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            column: column,
+            labels: t.labels,
+            checklist: t.checklist,
+            assignee: t.assignee,
+            pinned: t.pinned,
+            comments: t.comments,
+          };
+        }
+        return t;
       })
     );
   };
 
-  const addComment = (taskId) => {
-    const msg = prompt("Add comment:");
-    if (!msg) return;
-    setTasks((prev) =>
-      prev.map((t) => {
+  var togglePin = function (id) {
+    setTasks(
+      tasks.map(function (t) {
+        if (t.id === id) {
+          return {
+            id: t.id,
+            createdAt: t.createdAt,
+            bucketId: t.bucketId,
+            title: t.title,
+            notes: t.notes,
+            priority: t.priority,
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            column: t.column,
+            labels: t.labels,
+            checklist: t.checklist,
+            assignee: t.assignee,
+            pinned: !t.pinned,
+            comments: t.comments,
+          };
+        }
+        return t;
+      })
+    );
+  };
+
+  var toggleChecklist = function (taskId, idx) {
+    setTasks(
+      tasks.map(function (t) {
         if (t.id !== taskId) return t;
+        var list = t.checklist.map(function (c, i) {
+          if (i === idx) {
+            return { text: c.text, done: !c.done };
+          }
+          return c;
+        });
         return {
-          ...t,
-          comments: [
-            ...(t.comments || []),
-            {
-              text: msg.trim(),
-              date: new Date().toLocaleString(),
-            },
-          ],
+          id: t.id,
+          createdAt: t.createdAt,
+          bucketId: t.bucketId,
+          title: t.title,
+          notes: t.notes,
+          priority: t.priority,
+          startDate: t.startDate,
+          dueDate: t.dueDate,
+          column: t.column,
+          labels: t.labels,
+          checklist: list,
+          assignee: t.assignee,
+          pinned: t.pinned,
+          comments: t.comments,
         };
       })
     );
   };
 
-  // Calendar
-  const cells = useMemo(
-    () => getCalendarGrid(monthCursor),
+  var addComment = function (taskId) {
+    var msg = prompt("Add comment:");
+    if (!msg) return;
+    setTasks(
+      tasks.map(function (t) {
+        if (t.id !== taskId) return t;
+        var nc = (t.comments || []).concat([
+          {
+            text: msg.trim(),
+            date: new Date().toLocaleString(),
+          },
+        ]);
+        return {
+          id: t.id,
+          createdAt: t.createdAt,
+          bucketId: t.bucketId,
+          title: t.title,
+          notes: t.notes,
+          priority: t.priority,
+          startDate: t.startDate,
+          dueDate: t.dueDate,
+          column: t.column,
+          labels: t.labels,
+          checklist: t.checklist,
+          assignee: t.assignee,
+          pinned: t.pinned,
+          comments: nc,
+        };
+      })
+    );
+  };
+
+  var toggleCollapse = function (bid) {
+    var next = {};
+    var keys = Object.keys(collapsed);
+    for (var i = 0; i < keys.length; i++) {
+      next[keys[i]] = collapsed[keys[i]];
+    }
+    next[bid] = !next[bid];
+    setCollapsed(next);
+  };
+
+  var cells = useMemo(
+    function () {
+      return getCalendarGrid(monthCursor);
+    },
     [monthCursor]
   );
 
-  const tasksByDueDate = useMemo(() => {
-    const map = new Map();
-    for (const t of tasks) {
-      if (!t.dueDate) continue;
-      const key = yyyyMmDd(t.dueDate);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(t);
-    }
-    return map;
-  }, [tasks]);
-
-  const selectedDayTasks = useMemo(
-    () => tasksByDueDate.get(selectedDay) || [],
-    [tasksByDueDate, selectedDay]
+  var tasksByDueDate = useMemo(
+    function () {
+      var map = {};
+      for (var i = 0; i < tasks.length; i++) {
+        var t = tasks[i];
+        if (!t.dueDate) continue;
+        var key = yyyyMmDd(t.dueDate);
+        if (!map[key]) map[key] = [];
+        map[key].push(t);
+      }
+      return map;
+    },
+    [tasks]
   );
 
-  // Stats
-  const allTotal = tasks.length;
-  const allDone = tasks.filter(
-    (t) => t.column === "Done"
-  ).length;
-  const allOverdue = tasks.filter((t) => isOverdue(t)).length;
+  var selectedDayTasks = tasksByDueDate[selectedDay] || [];
 
-  // Theme
-  const theme = {
+  var allTotal = tasks.length;
+  var allDone = tasks.filter(function (t) {
+    return t.column === "Done";
+  }).length;
+  var allOverdue = tasks.filter(function (t) {
+    return isOverdue(t);
+  }).length;
+
+  var theme = {
     bg: "linear-gradient(180deg, #FBF7FF 0%, #F7FBFF 40%, #FDF7FB 100%)",
     header:
       "linear-gradient(135deg, #DCE7F6 0%, #EADCF6 50%, #F6DCEB 100%)",
     text: "#2E3A4A",
     subtext: "#6B7A90",
-    card: "#FFFFFF",
     cardShadow: "0 12px 30px rgba(30, 60, 90, 0.08)",
     softBorder: "1px solid rgba(200, 214, 235, 0.55)",
     pill: "rgba(255,255,255,0.65)",
@@ -467,39 +648,35 @@ export default function App() {
     inputBg: "rgba(255,255,255,0.85)",
   };
 
-  const pillBtn = (active = false) => ({
-    border: "none",
-    borderRadius: 999,
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 13,
-    color: theme.text,
-    background: active
-      ? "rgba(255,255,255,0.92)"
-      : theme.pill,
-    boxShadow: active
-      ? "0 10px 24px rgba(0,0,0,0.06)"
-      : "none",
-  });
+  var pillBtn = function (active) {
+    return {
+      border: "none",
+      borderRadius: 999,
+      padding: "10px 14px",
+      cursor: "pointer",
+      fontWeight: 800,
+      fontSize: 13,
+      color: theme.text,
+      background: active
+        ? "rgba(255,255,255,0.92)"
+        : theme.pill,
+      boxShadow: active
+        ? "0 10px 24px rgba(0,0,0,0.06)"
+        : "none",
+    };
+  };
 
-  const softBtn = (bg) => ({
-    border: "none",
-    borderRadius: 14,
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: 900,
-    color: "#fff",
-    background: bg,
-    boxShadow: "0 14px 28px rgba(0,0,0,0.10)",
-  });
-
-  // Toggle collapse
-  const toggleCollapse = (bid) => {
-    setCollapsed((prev) => ({
-      ...prev,
-      [bid]: !prev[bid],
-    }));
+  var softBtn = function (bg) {
+    return {
+      border: "none",
+      borderRadius: 14,
+      padding: "10px 14px",
+      cursor: "pointer",
+      fontWeight: 900,
+      color: "#fff",
+      background: bg,
+      boxShadow: "0 14px 28px rgba(0,0,0,0.10)",
+    };
   };
 
   return (
@@ -512,11 +689,11 @@ export default function App() {
           "Segoe UI, system-ui, -apple-system, sans-serif",
       }}
     >
-      <style>{`
-        .lift:hover { transform: translateY(-2px); box-shadow: 0 18px 40px rgba(30,60,90,0.12); }
-        .btnlift:hover { transform: translateY(-1px); box-shadow: 0 18px 34px rgba(0,0,0,0.12); }
-        ::selection { background: rgba(247, 169, 196, 0.45); }
-      `}</style>
+      <style>
+        {
+          ".lift:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(30,60,90,0.12)}.btnlift:hover{transform:translateY(-1px);box-shadow:0 18px 34px rgba(0,0,0,0.12)}::selection{background:rgba(247,169,196,0.45)}"
+        }
+      </style>
 
       {/* Header */}
       <header
@@ -550,7 +727,8 @@ export default function App() {
                 background: "rgba(255,255,255,0.85)",
                 display: "grid",
                 placeItems: "center",
-                boxShadow: "0 12px 26px rgba(0,0,0,0.10)",
+                boxShadow:
+                  "0 12px 26px rgba(0,0,0,0.10)",
                 fontSize: 20,
               }}
             >
@@ -561,7 +739,6 @@ export default function App() {
                 style={{
                   fontSize: 22,
                   fontWeight: 950,
-                  letterSpacing: 0.2,
                 }}
               >
                 My Planner
@@ -575,7 +752,7 @@ export default function App() {
               >
                 📊 {allTotal} total • ✅ {allDone} done
                 {allOverdue > 0
-                  ? ` • ⚠️ ${allOverdue} overdue`
+                  ? " • ⚠️ " + allOverdue + " overdue"
                   : ""}
               </div>
             </div>
@@ -590,14 +767,18 @@ export default function App() {
           >
             <button
               style={pillBtn(view === "dashboard")}
-              onClick={() => setView("dashboard")}
+              onClick={function () {
+                setView("dashboard");
+              }}
               className="btnlift"
             >
               📋 All Projects
             </button>
             <button
               style={pillBtn(view === "month")}
-              onClick={() => setView("month")}
+              onClick={function () {
+                setView("month");
+              }}
               className="btnlift"
             >
               🗓️ Month
@@ -611,7 +792,9 @@ export default function App() {
             </button>
             <button
               style={pillBtn(false)}
-              onClick={() => openBucketEditor(null)}
+              onClick={function () {
+                openBucketEditor(null);
+              }}
               className="btnlift"
             >
               + Project
@@ -632,7 +815,9 @@ export default function App() {
       >
         <input
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={function (e) {
+            setSearchQuery(e.target.value);
+          }}
           placeholder="🔍 Search all tasks..."
           style={{
             flex: 1,
@@ -647,16 +832,16 @@ export default function App() {
             color: theme.text,
           }}
         />
-
         <select
           value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
+          onChange={function (e) {
+            setFilterPriority(e.target.value);
+          }}
           style={{
             padding: "12px 14px",
             borderRadius: 18,
             border: theme.softBorder,
             background: theme.inputBg,
-            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
             fontWeight: 800,
             color: theme.text,
           }}
@@ -667,16 +852,16 @@ export default function App() {
           <option value="Medium">💜 Medium</option>
           <option value="Low">💚 Low</option>
         </select>
-
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
+          onChange={function (e) {
+            setSortBy(e.target.value);
+          }}
           style={{
             padding: "12px 14px",
             borderRadius: 18,
             border: theme.softBorder,
             background: theme.inputBg,
-            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
             fontWeight: 800,
             color: theme.text,
           }}
@@ -688,28 +873,29 @@ export default function App() {
         </select>
       </div>
 
-      {/* =====================
-          DASHBOARD VIEW
-          ===================== */}
+      {/* DASHBOARD */}
       {view === "dashboard" && (
         <div style={{ padding: "0 14px 30px" }}>
-          {buckets.map((bucket) => {
-            const bucketTasksRaw = tasks.filter(
-              (t) => t.bucketId === bucket.id
+          {buckets.map(function (bucket) {
+            var bucketTasksRaw = tasks.filter(
+              function (t) {
+                return t.bucketId === bucket.id;
+              }
             );
-            const bucketTasksFiltered = filterAndSort(
-              bucketTasksRaw
-            );
-            const done = bucketTasksRaw.filter(
-              (t) => t.column === "Done"
+            var bucketTasksFiltered =
+              filterAndSort(bucketTasksRaw);
+            var done = bucketTasksRaw.filter(
+              function (t) {
+                return t.column === "Done";
+              }
             ).length;
-            const total = bucketTasksRaw.length;
-            const pct =
+            var total = bucketTasksRaw.length;
+            var pct =
               total > 0
                 ? Math.round((done / total) * 100)
                 : 0;
-            const isCollapsed = collapsed[bucket.id];
-            const dot =
+            var isCollapsed = collapsed[bucket.id];
+            var dot =
               BUCKET_DOTS[bucket.id] || theme.accent;
 
             return (
@@ -727,17 +913,16 @@ export default function App() {
               >
                 {/* Bucket Header */}
                 <div
-                  onClick={() =>
-                    toggleCollapse(bucket.id)
-                  }
+                  onClick={function () {
+                    toggleCollapse(bucket.id);
+                  }}
                   style={{
                     padding: "16px 18px",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
                     cursor: "pointer",
-                    background:
-                      "rgba(255,255,255,0.55)",
+                    background: "rgba(255,255,255,0.55)",
                     flexWrap: "wrap",
                     gap: 10,
                   }}
@@ -756,7 +941,6 @@ export default function App() {
                         borderRadius: 999,
                         background: dot,
                         display: "inline-block",
-                        flexShrink: 0,
                       }}
                     />
                     <div
@@ -792,30 +976,28 @@ export default function App() {
                       gap: 8,
                       alignItems: "center",
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={function (e) {
+                      e.stopPropagation();
+                    }}
                   >
-                    {/* Progress bar */}
                     <div
                       style={{
                         width: 120,
                         height: 10,
                         borderRadius: 999,
-                        background:
-                          "rgba(0,0,0,0.06)",
+                        background: "rgba(0,0,0,0.06)",
                         overflow: "hidden",
                       }}
                     >
                       <div
                         style={{
                           height: "100%",
-                          width: `${pct}%`,
+                          width: pct + "%",
                           background:
                             pct === 100
                               ? theme.accent3
                               : dot,
                           borderRadius: 999,
-                          transition:
-                            "width 0.3s",
                         }}
                       />
                     </div>
@@ -828,34 +1010,32 @@ export default function App() {
                     >
                       {pct}%
                     </span>
-
                     <button
-                      onClick={() =>
-                        openNewTask(bucket.id)
-                      }
+                      onClick={function () {
+                        openNewTask(bucket.id);
+                      }}
                       style={softBtn(theme.accent)}
                       className="btnlift"
                     >
                       + Task
                     </button>
                     <button
-                      onClick={() =>
-                        openBucketEditor(bucket)
-                      }
+                      onClick={function () {
+                        openBucketEditor(bucket);
+                      }}
                       style={{
                         border: "none",
                         background: "transparent",
                         cursor: "pointer",
                         fontSize: 14,
                       }}
-                      title="Rename"
                     >
                       ✏️
                     </button>
                     <button
-                      onClick={() =>
-                        deleteBucket(bucket.id)
-                      }
+                      onClick={function () {
+                        deleteBucket(bucket.id);
+                      }}
                       style={{
                         border: "none",
                         background: "transparent",
@@ -863,7 +1043,6 @@ export default function App() {
                         fontSize: 14,
                         color: "#D36C7D",
                       }}
-                      title="Delete"
                     >
                       ✕
                     </button>
@@ -872,16 +1051,13 @@ export default function App() {
 
                 {/* Tasks */}
                 {!isCollapsed && (
-                  <div
-                    style={{
-                      padding: "10px 18px 18px",
-                    }}
-                  >
-                    {/* Column group headers */}
-                    {COLUMNS.map((col) => {
-                      const colTasks =
+                  <div style={{ padding: "10px 18px 18px" }}>
+                    {COLUMNS.map(function (col) {
+                      var colTasks =
                         bucketTasksFiltered.filter(
-                          (t) => t.column === col
+                          function (t) {
+                            return t.column === col;
+                          }
                         );
                       if (colTasks.length === 0)
                         return null;
@@ -889,9 +1065,7 @@ export default function App() {
                       return (
                         <div
                           key={col}
-                          style={{
-                            marginBottom: 14,
-                          }}
+                          style={{ marginBottom: 14 }}
                         >
                           <div
                             style={{
@@ -929,18 +1103,16 @@ export default function App() {
                               gap: 10,
                             }}
                           >
-                            {colTasks.map((t) => {
-                              const expanded =
+                            {colTasks.map(function (t) {
+                              var expanded =
                                 viewingTaskId === t.id;
-                              const progress =
+                              var progress =
                                 getProgress(t);
-                              const overdue =
-                                isOverdue(t);
-                              const dueToday =
+                              var overdue = isOverdue(t);
+                              var dueToday =
                                 isDueToday(t);
-                              const dueSoon =
-                                isDueSoon(t);
-                              const tint =
+                              var dueSoon = isDueSoon(t);
+                              var tint =
                                 PRIORITY_COLORS[
                                   t.priority
                                 ] + "55";
@@ -949,18 +1121,22 @@ export default function App() {
                                 <div
                                   key={t.id}
                                   className="lift"
-                                  onClick={() =>
+                                  onClick={function () {
                                     setViewingTaskId(
                                       expanded
                                         ? null
                                         : t.id
-                                    )
-                                  }
+                                    );
+                                  }}
                                   style={{
                                     background: tint,
                                     border:
                                       "1px solid rgba(0,0,0,0.03)",
-                                    borderLeft: `10px solid ${PRIORITY_COLORS[t.priority]}`,
+                                    borderLeft:
+                                      "10px solid " +
+                                      PRIORITY_COLORS[
+                                        t.priority
+                                      ],
                                     borderRadius: 22,
                                     padding: 12,
                                     width: 300,
@@ -975,8 +1151,7 @@ export default function App() {
                                       style={{
                                         fontSize: 11,
                                         fontWeight: 950,
-                                        color:
-                                          "#7B6AA9",
+                                        color: "#7B6AA9",
                                         marginBottom: 4,
                                       }}
                                     >
@@ -1101,8 +1276,7 @@ export default function App() {
                                     </div>
                                   )}
 
-                                  {progress !==
-                                    null && (
+                                  {progress !== null && (
                                     <div
                                       style={{
                                         marginBottom: 6,
@@ -1122,7 +1296,9 @@ export default function App() {
                                           style={{
                                             height:
                                               "100%",
-                                            width: `${progress}%`,
+                                            width:
+                                              progress +
+                                              "%",
                                             background:
                                               progress ===
                                               100
@@ -1146,8 +1322,8 @@ export default function App() {
                                   )}
 
                                   {!expanded &&
-                                    t.comments
-                                      ?.length >
+                                    t.comments &&
+                                    t.comments.length >
                                       0 && (
                                       <div
                                         style={{
@@ -1170,7 +1346,6 @@ export default function App() {
                                       </div>
                                     )}
 
-                                  {/* Expanded */}
                                   {expanded && (
                                     <div
                                       style={{
@@ -1210,146 +1385,151 @@ export default function App() {
                                         </div>
                                       )}
 
-                                      {t.checklist
-                                        ?.length >
-                                        0 && (
-                                        <div
-                                          style={{
-                                            marginBottom: 10,
-                                          }}
-                                        >
+                                      {t.checklist &&
+                                        t.checklist
+                                          .length >
+                                          0 && (
                                           <div
                                             style={{
-                                              fontSize: 12,
-                                              fontWeight: 950,
-                                              marginBottom: 6,
+                                              marginBottom: 10,
                                             }}
                                           >
-                                            ☑️
-                                            Checklist
+                                            <div
+                                              style={{
+                                                fontSize: 12,
+                                                fontWeight: 950,
+                                                marginBottom: 6,
+                                              }}
+                                            >
+                                              ☑️
+                                              Checklist
+                                            </div>
+                                            {t.checklist.map(
+                                              function (
+                                                c,
+                                                i
+                                              ) {
+                                                return (
+                                                  <div
+                                                    key={
+                                                      i
+                                                    }
+                                                    onClick={function (
+                                                      e
+                                                    ) {
+                                                      e.stopPropagation();
+                                                      toggleChecklist(
+                                                        t.id,
+                                                        i
+                                                      );
+                                                    }}
+                                                    style={{
+                                                      display:
+                                                        "flex",
+                                                      gap: 8,
+                                                      alignItems:
+                                                        "center",
+                                                      fontSize: 13,
+                                                      padding:
+                                                        "3px 0",
+                                                      fontWeight: 750,
+                                                      cursor:
+                                                        "pointer",
+                                                    }}
+                                                  >
+                                                    <span>
+                                                      {c.done
+                                                        ? "✅"
+                                                        : "⬜"}
+                                                    </span>
+                                                    <span
+                                                      style={{
+                                                        textDecoration:
+                                                          c.done
+                                                            ? "line-through"
+                                                            : "none",
+                                                        color:
+                                                          c.done
+                                                            ? theme.subtext
+                                                            : theme.text,
+                                                      }}
+                                                    >
+                                                      {
+                                                        c.text
+                                                      }
+                                                    </span>
+                                                  </div>
+                                                );
+                                              }
+                                            )}
                                           </div>
-                                          {t.checklist.map(
-                                            (
-                                              c,
-                                              i
-                                            ) => (
-                                              <div
-                                                key={
-                                                  i
-                                                }
-                                                onClick={(
-                                                  e
-                                                ) => {
-                                                  e.stopPropagation();
-                                                  toggleChecklist(
-                                                    t.id,
-                                                    i
-                                                  );
-                                                }}
-                                                style={{
-                                                  display:
-                                                    "flex",
-                                                  gap: 8,
-                                                  alignItems:
-                                                    "center",
-                                                  fontSize: 13,
-                                                  padding:
-                                                    "3px 0",
-                                                  fontWeight: 750,
-                                                  cursor:
-                                                    "pointer",
-                                                }}
-                                              >
-                                                <span>
-                                                  {c.done
-                                                    ? "✅"
-                                                    : "⬜"}
-                                                </span>
-                                                <span
-                                                  style={{
-                                                    textDecoration:
-                                                      c.done
-                                                        ? "line-through"
-                                                        : "none",
-                                                    color:
-                                                      c.done
-                                                        ? theme.subtext
-                                                        : theme.text,
-                                                  }}
-                                                >
-                                                  {
-                                                    c.text
-                                                  }
-                                                </span>
-                                              </div>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
+                                        )}
 
-                                      {t.comments
-                                        ?.length >
-                                        0 && (
-                                        <div
-                                          style={{
-                                            marginBottom: 10,
-                                          }}
-                                        >
+                                      {t.comments &&
+                                        t.comments
+                                          .length >
+                                          0 && (
                                           <div
                                             style={{
-                                              fontSize: 12,
-                                              fontWeight: 950,
-                                              marginBottom: 6,
+                                              marginBottom: 10,
                                             }}
                                           >
-                                            💬
-                                            Comments
+                                            <div
+                                              style={{
+                                                fontSize: 12,
+                                                fontWeight: 950,
+                                                marginBottom: 6,
+                                              }}
+                                            >
+                                              💬
+                                              Comments
+                                            </div>
+                                            {t.comments.map(
+                                              function (
+                                                c,
+                                                i
+                                              ) {
+                                                return (
+                                                  <div
+                                                    key={
+                                                      i
+                                                    }
+                                                    style={{
+                                                      background:
+                                                        "rgba(255,255,255,0.65)",
+                                                      borderRadius: 14,
+                                                      padding: 10,
+                                                      marginBottom: 6,
+                                                    }}
+                                                  >
+                                                    <div
+                                                      style={{
+                                                        fontSize: 13,
+                                                      }}
+                                                    >
+                                                      {
+                                                        c.text
+                                                      }
+                                                    </div>
+                                                    <div
+                                                      style={{
+                                                        fontSize: 11,
+                                                        color:
+                                                          theme.subtext,
+                                                        marginTop: 4,
+                                                      }}
+                                                    >
+                                                      {
+                                                        c.date
+                                                      }
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+                                            )}
                                           </div>
-                                          {t.comments.map(
-                                            (
-                                              c,
-                                              i
-                                            ) => (
-                                              <div
-                                                key={
-                                                  i
-                                                }
-                                                style={{
-                                                  background:
-                                                    "rgba(255,255,255,0.65)",
-                                                  borderRadius: 14,
-                                                  padding: 10,
-                                                  marginBottom: 6,
-                                                }}
-                                              >
-                                                <div
-                                                  style={{
-                                                    fontSize: 13,
-                                                  }}
-                                                >
-                                                  {
-                                                    c.text
-                                                  }
-                                                </div>
-                                                <div
-                                                  style={{
-                                                    fontSize: 11,
-                                                    color:
-                                                      theme.subtext,
-                                                    marginTop: 4,
-                                                  }}
-                                                >
-                                                  {
-                                                    c.date
-                                                  }
-                                                </div>
-                                              </div>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
+                                        )}
 
-                                      {/* Move */}
                                       <div
                                         style={{
                                           display:
@@ -1361,47 +1541,51 @@ export default function App() {
                                         }}
                                       >
                                         {COLUMNS.filter(
-                                          (c) =>
-                                            c !==
-                                            t.column
+                                          function (c) {
+                                            return (
+                                              c !==
+                                              t.column
+                                            );
+                                          }
                                         ).map(
-                                          (c) => (
-                                            <button
-                                              key={c}
-                                              onClick={(
-                                                e
-                                              ) => {
-                                                e.stopPropagation();
-                                                moveTask(
-                                                  t.id,
-                                                  c
-                                                );
-                                              }}
-                                              style={{
-                                                border:
-                                                  "none",
-                                                background:
-                                                  "rgba(255,255,255,0.75)",
-                                                borderRadius: 999,
-                                                padding:
-                                                  "8px 10px",
-                                                cursor:
-                                                  "pointer",
-                                                fontWeight: 900,
-                                                fontSize: 12,
-                                                color:
-                                                  "#4A5568",
-                                              }}
-                                              className="btnlift"
-                                            >
-                                              →{" "}
-                                              {c}
-                                            </button>
-                                          )
+                                          function (c) {
+                                            return (
+                                              <button
+                                                key={c}
+                                                onClick={function (
+                                                  e
+                                                ) {
+                                                  e.stopPropagation();
+                                                  moveTask(
+                                                    t.id,
+                                                    c
+                                                  );
+                                                }}
+                                                style={{
+                                                  border:
+                                                    "none",
+                                                  background:
+                                                    "rgba(255,255,255,0.75)",
+                                                  borderRadius: 999,
+                                                  padding:
+                                                    "8px 10px",
+                                                  cursor:
+                                                    "pointer",
+                                                  fontWeight: 900,
+                                                  fontSize: 12,
+                                                  color:
+                                                    "#4A5568",
+                                                }}
+                                                className="btnlift"
+                                              >
+                                                →{" "}
+                                                {c}
+                                              </button>
+                                            );
+                                          }
                                         )}
                                       </div>
 
-                                      {/* Action btns */}
                                       <div
                                         style={{
                                           display:
@@ -1412,9 +1596,9 @@ export default function App() {
                                         }}
                                       >
                                         <button
-                                          onClick={(
+                                          onClick={function (
                                             e
-                                          ) => {
+                                          ) {
                                             e.stopPropagation();
                                             togglePin(
                                               t.id
@@ -1432,9 +1616,9 @@ export default function App() {
                                             : "📌 Pin"}
                                         </button>
                                         <button
-                                          onClick={(
+                                          onClick={function (
                                             e
-                                          ) => {
+                                          ) {
                                             e.stopPropagation();
                                             openEditTask(
                                               t
@@ -1448,9 +1632,9 @@ export default function App() {
                                           ✏️ Edit
                                         </button>
                                         <button
-                                          onClick={(
+                                          onClick={function (
                                             e
-                                          ) => {
+                                          ) {
                                             e.stopPropagation();
                                             addComment(
                                               t.id
@@ -1464,9 +1648,9 @@ export default function App() {
                                           💬
                                         </button>
                                         <button
-                                          onClick={(
+                                          onClick={function (
                                             e
-                                          ) => {
+                                          ) {
                                             e.stopPropagation();
                                             removeTask(
                                               t.id
@@ -1490,8 +1674,7 @@ export default function App() {
                       );
                     })}
 
-                    {bucketTasksFiltered.length ===
-                      0 && (
+                    {bucketTasksFiltered.length === 0 && (
                       <div
                         style={{
                           padding: 14,
@@ -1499,8 +1682,8 @@ export default function App() {
                           fontWeight: 800,
                         }}
                       >
-                        No tasks yet — click{" "}
-                        <b>+ Task</b> to add one!
+                        No tasks yet — click + Task to
+                        add one!
                       </div>
                     )}
                   </div>
@@ -1511,9 +1694,7 @@ export default function App() {
         </div>
       )}
 
-      {/* =====================
-          MONTH VIEW
-          ===================== */}
+      {/* MONTH */}
       {view === "month" && (
         <div style={{ padding: 14 }}>
           <div
@@ -1531,17 +1712,16 @@ export default function App() {
                 display: "flex",
                 gap: 8,
                 alignItems: "center",
-                flexWrap: "wrap",
               }}
             >
               <button
                 style={pillBtn(false)}
                 className="btnlift"
-                onClick={() =>
-                  setMonthCursor((d) =>
-                    addMonths(d, -1)
-                  )
-                }
+                onClick={function () {
+                  setMonthCursor(
+                    addMonths(monthCursor, -1)
+                  );
+                }}
               >
                 ◀
               </button>
@@ -1556,18 +1736,18 @@ export default function App() {
               <button
                 style={pillBtn(false)}
                 className="btnlift"
-                onClick={() =>
-                  setMonthCursor((d) =>
-                    addMonths(d, +1)
-                  )
-                }
+                onClick={function () {
+                  setMonthCursor(
+                    addMonths(monthCursor, 1)
+                  );
+                }}
               >
                 ▶
               </button>
               <button
                 style={softBtn("#7FB7D9")}
                 className="btnlift"
-                onClick={() => {
+                onClick={function () {
                   setMonthCursor(
                     startOfMonth(new Date())
                   );
@@ -1586,38 +1766,35 @@ export default function App() {
               gap: 10,
             }}
           >
-            {[
-              "Sun",
-              "Mon",
-              "Tue",
-              "Wed",
-              "Thu",
-              "Fri",
-              "Sat",
-            ].map((d) => (
-              <div
-                key={d}
-                style={{
-                  fontWeight: 950,
-                  fontSize: 12,
-                  color: theme.subtext,
-                  padding: "0 8px",
-                }}
-              >
-                {d}
-              </div>
-            ))}
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+              function (d) {
+                return (
+                  <div
+                    key={d}
+                    style={{
+                      fontWeight: 950,
+                      fontSize: 12,
+                      color: theme.subtext,
+                      padding: "0 8px",
+                    }}
+                  >
+                    {d}
+                  </div>
+                );
+              }
+            )}
 
-            {cells.map((c, idx) => {
-              const key = yyyyMmDd(c.date);
-              const dayTasks =
-                tasksByDueDate.get(key) || [];
-              const selected = key === selectedDay;
+            {cells.map(function (c, idx) {
+              var key = yyyyMmDd(c.date);
+              var dayTasks = tasksByDueDate[key] || [];
+              var selected = key === selectedDay;
 
               return (
                 <div
                   key={idx}
-                  onClick={() => setSelectedDay(key)}
+                  onClick={function () {
+                    setSelectedDay(key);
+                  }}
                   className="lift"
                   style={{
                     background: selected
@@ -1676,23 +1853,30 @@ export default function App() {
                       gap: 4,
                     }}
                   >
-                    {dayTasks.slice(0, 2).map((t) => (
-                      <div
-                        key={t.id}
-                        style={{
-                          borderLeft: `8px solid ${PRIORITY_COLORS[t.priority]}`,
-                          paddingLeft: 8,
-                          fontSize: 11,
-                          fontWeight: 900,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={t.title}
-                      >
-                        {t.title}
-                      </div>
-                    ))}
+                    {dayTasks.slice(0, 2).map(
+                      function (t) {
+                        return (
+                          <div
+                            key={t.id}
+                            style={{
+                              borderLeft:
+                                "8px solid " +
+                                PRIORITY_COLORS[
+                                  t.priority
+                                ],
+                              paddingLeft: 8,
+                              fontSize: 11,
+                              fontWeight: 900,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {t.title}
+                          </div>
+                        );
+                      }
+                    )}
                     {dayTasks.length > 2 && (
                       <div
                         style={{
@@ -1710,7 +1894,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Selected day */}
           <div
             style={{
               marginTop: 16,
@@ -1746,23 +1929,26 @@ export default function App() {
                   gap: 10,
                 }}
               >
-                {selectedDayTasks.map((t) => {
-                  const bName =
-                    buckets.find(
-                      (b) => b.id === t.bucketId
-                    )?.name || "?";
+                {selectedDayTasks.map(function (t) {
+                  var bName = "?";
+                  for (var i = 0; i < buckets.length; i++) {
+                    if (buckets[i].id === t.bucketId) {
+                      bName = buckets[i].name;
+                    }
+                  }
                   return (
                     <div
                       key={t.id}
                       className="lift"
                       style={{
                         background:
-                          PRIORITY_COLORS[
-                            t.priority
-                          ] + "55",
+                          PRIORITY_COLORS[t.priority] +
+                          "55",
                         borderRadius: 22,
                         padding: 12,
-                        borderLeft: `10px solid ${PRIORITY_COLORS[t.priority]}`,
+                        borderLeft:
+                          "10px solid " +
+                          PRIORITY_COLORS[t.priority],
                         boxShadow: theme.cardShadow,
                       }}
                     >
@@ -1789,13 +1975,11 @@ export default function App() {
                         }}
                       >
                         <button
-                          style={softBtn(
-                            theme.accent
-                          )}
+                          style={softBtn(theme.accent)}
                           className="btnlift"
-                          onClick={() =>
-                            openEditTask(t)
-                          }
+                          onClick={function () {
+                            openEditTask(t);
+                          }}
                         >
                           ✏️ Edit
                         </button>
@@ -1809,24 +1993,30 @@ export default function App() {
         </div>
       )}
 
-      {/* =====================
-          TASK MODAL
-          ===================== */}
+      {/* TASK MODAL */}
       {showTaskModal && (
         <div
-          onClick={() => setShowTaskModal(false)}
+          onClick={function () {
+            setShowTaskModal(false);
+          }}
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             zIndex: 1000,
             padding: 14,
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            onClick={function (e) {
+              e.stopPropagation();
+            }}
             style={{
               width: "100%",
               maxWidth: 640,
@@ -1863,12 +2053,21 @@ export default function App() {
             </label>
             <input
               value={form.title}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
+              onChange={function (e) {
+                setForm({
                   title: e.target.value,
-                }))
-              }
+                  notes: form.notes,
+                  priority: form.priority,
+                  startDate: form.startDate,
+                  dueDate: form.dueDate,
+                  column: form.column,
+                  labels: form.labels,
+                  checklist: form.checklist,
+                  assignee: form.assignee,
+                  pinned: form.pinned,
+                  comments: form.comments,
+                });
+              }}
               placeholder="What needs to be done?"
               style={{
                 width: "100%",
@@ -1879,6 +2078,7 @@ export default function App() {
                 border: theme.softBorder,
                 background: theme.inputBg,
                 fontWeight: 800,
+                boxSizing: "border-box",
               }}
             />
 
@@ -1893,12 +2093,21 @@ export default function App() {
             </label>
             <input
               value={form.assignee}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
+              onChange={function (e) {
+                setForm({
+                  title: form.title,
+                  notes: form.notes,
+                  priority: form.priority,
+                  startDate: form.startDate,
+                  dueDate: form.dueDate,
+                  column: form.column,
+                  labels: form.labels,
+                  checklist: form.checklist,
                   assignee: e.target.value,
-                }))
-              }
+                  pinned: form.pinned,
+                  comments: form.comments,
+                });
+              }}
               placeholder="Who's owning this?"
               style={{
                 width: "100%",
@@ -1909,6 +2118,7 @@ export default function App() {
                 border: theme.softBorder,
                 background: theme.inputBg,
                 fontWeight: 800,
+                boxSizing: "border-box",
               }}
             />
 
@@ -1923,12 +2133,21 @@ export default function App() {
             </label>
             <textarea
               value={form.notes}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
+              onChange={function (e) {
+                setForm({
+                  title: form.title,
                   notes: e.target.value,
-                }))
-              }
+                  priority: form.priority,
+                  startDate: form.startDate,
+                  dueDate: form.dueDate,
+                  column: form.column,
+                  labels: form.labels,
+                  checklist: form.checklist,
+                  assignee: form.assignee,
+                  pinned: form.pinned,
+                  comments: form.comments,
+                });
+              }}
               rows={3}
               placeholder="Add details…"
               style={{
@@ -1941,6 +2160,7 @@ export default function App() {
                 background: theme.inputBg,
                 fontWeight: 750,
                 resize: "vertical",
+                boxSizing: "border-box",
               }}
             />
 
@@ -1964,12 +2184,21 @@ export default function App() {
                 </label>
                 <select
                   value={form.priority}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                  onChange={function (e) {
+                    setForm({
+                      title: form.title,
+                      notes: form.notes,
                       priority: e.target.value,
-                    }))
-                  }
+                      startDate: form.startDate,
+                      dueDate: form.dueDate,
+                      column: form.column,
+                      labels: form.labels,
+                      checklist: form.checklist,
+                      assignee: form.assignee,
+                      pinned: form.pinned,
+                      comments: form.comments,
+                    });
+                  }}
                   style={{
                     width: "100%",
                     marginTop: 6,
@@ -1980,19 +2209,12 @@ export default function App() {
                     fontWeight: 900,
                   }}
                 >
-                  <option value="Urgent">
-                    💗 Urgent
-                  </option>
-                  <option value="High">
-                    ❤️ High
-                  </option>
-                  <option value="Medium">
-                    💜 Medium
-                  </option>
+                  <option value="Urgent">💗 Urgent</option>
+                  <option value="High">❤️ High</option>
+                  <option value="Medium">💜 Medium</option>
                   <option value="Low">💚 Low</option>
                 </select>
               </div>
-
               <div style={{ flex: 1, minWidth: 200 }}>
                 <label
                   style={{
@@ -2005,12 +2227,21 @@ export default function App() {
                 </label>
                 <select
                   value={form.column}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                  onChange={function (e) {
+                    setForm({
+                      title: form.title,
+                      notes: form.notes,
+                      priority: form.priority,
+                      startDate: form.startDate,
+                      dueDate: form.dueDate,
                       column: e.target.value,
-                    }))
-                  }
+                      labels: form.labels,
+                      checklist: form.checklist,
+                      assignee: form.assignee,
+                      pinned: form.pinned,
+                      comments: form.comments,
+                    });
+                  }}
                   style={{
                     width: "100%",
                     marginTop: 6,
@@ -2021,11 +2252,13 @@ export default function App() {
                     fontWeight: 900,
                   }}
                 >
-                  {COLUMNS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                  {COLUMNS.map(function (c) {
+                    return (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
@@ -2051,12 +2284,21 @@ export default function App() {
                 <input
                   type="date"
                   value={form.startDate}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                  onChange={function (e) {
+                    setForm({
+                      title: form.title,
+                      notes: form.notes,
+                      priority: form.priority,
                       startDate: e.target.value,
-                    }))
-                  }
+                      dueDate: form.dueDate,
+                      column: form.column,
+                      labels: form.labels,
+                      checklist: form.checklist,
+                      assignee: form.assignee,
+                      pinned: form.pinned,
+                      comments: form.comments,
+                    });
+                  }}
                   style={{
                     width: "100%",
                     marginTop: 6,
@@ -2065,6 +2307,7 @@ export default function App() {
                     border: theme.softBorder,
                     background: theme.inputBg,
                     fontWeight: 850,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -2081,12 +2324,21 @@ export default function App() {
                 <input
                   type="date"
                   value={form.dueDate}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                  onChange={function (e) {
+                    setForm({
+                      title: form.title,
+                      notes: form.notes,
+                      priority: form.priority,
+                      startDate: form.startDate,
                       dueDate: e.target.value,
-                    }))
-                  }
+                      column: form.column,
+                      labels: form.labels,
+                      checklist: form.checklist,
+                      assignee: form.assignee,
+                      pinned: form.pinned,
+                      comments: form.comments,
+                    });
+                  }}
                   style={{
                     width: "100%",
                     marginTop: 6,
@@ -2095,6 +2347,7 @@ export default function App() {
                     border: theme.softBorder,
                     background: theme.inputBg,
                     fontWeight: 850,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -2110,12 +2363,21 @@ export default function App() {
               }}
             >
               <button
-                onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    pinned: !f.pinned,
-                  }))
-                }
+                onClick={function () {
+                  setForm({
+                    title: form.title,
+                    notes: form.notes,
+                    priority: form.priority,
+                    startDate: form.startDate,
+                    dueDate: form.dueDate,
+                    column: form.column,
+                    labels: form.labels,
+                    checklist: form.checklist,
+                    assignee: form.assignee,
+                    pinned: !form.pinned,
+                    comments: form.comments,
+                  });
+                }}
                 style={softBtn(
                   form.pinned
                     ? theme.accent2
@@ -2123,24 +2385,27 @@ export default function App() {
                 )}
                 className="btnlift"
               >
-                {form.pinned
-                  ? "📌 Pinned"
-                  : "📌 Pin"}
+                {form.pinned ? "📌 Pinned" : "📌 Pin"}
               </button>
-
               <button
-                onClick={() => {
-                  const txt = prompt(
-                    "Checklist item:"
-                  );
+                onClick={function () {
+                  var txt = prompt("Checklist item:");
                   if (!txt) return;
-                  setForm((f) => ({
-                    ...f,
-                    checklist: [
-                      ...(f.checklist || []),
+                  setForm({
+                    title: form.title,
+                    notes: form.notes,
+                    priority: form.priority,
+                    startDate: form.startDate,
+                    dueDate: form.dueDate,
+                    column: form.column,
+                    labels: form.labels,
+                    checklist: form.checklist.concat([
                       { text: txt, done: false },
-                    ],
-                  }));
+                    ]),
+                    assignee: form.assignee,
+                    pinned: form.pinned,
+                    comments: form.comments,
+                  });
                 }}
                 style={softBtn("#7FB7D9")}
                 className="btnlift"
@@ -2149,7 +2414,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Labels */}
             <div
               style={{
                 display: "flex",
@@ -2158,22 +2422,38 @@ export default function App() {
                 marginBottom: 14,
               }}
             >
-              {LABELS.map((l) => {
-                const sel = form.labels.includes(
-                  l.name
-                );
+              {LABELS.map(function (l) {
+                var sel =
+                  form.labels.indexOf(l.name) >= 0;
                 return (
                   <button
                     key={l.name}
-                    onClick={() => {
-                      setForm((f) => ({
-                        ...f,
-                        labels: sel
-                          ? f.labels.filter(
-                              (x) => x !== l.name
-                            )
-                          : [...f.labels, l.name],
-                      }));
+                    onClick={function () {
+                      var newLabels;
+                      if (sel) {
+                        newLabels =
+                          form.labels.filter(
+                            function (x) {
+                              return x !== l.name;
+                            }
+                          );
+                      } else {
+                        newLabels =
+                          form.labels.concat([l.name]);
+                      }
+                      setForm({
+                        title: form.title,
+                        notes: form.notes,
+                        priority: form.priority,
+                        startDate: form.startDate,
+                        dueDate: form.dueDate,
+                        column: form.column,
+                        labels: newLabels,
+                        checklist: form.checklist,
+                        assignee: form.assignee,
+                        pinned: form.pinned,
+                        comments: form.comments,
+                      });
                     }}
                     style={{
                       border: "none",
@@ -2194,50 +2474,61 @@ export default function App() {
               })}
             </div>
 
-            {/* Show checklist preview */}
-            {form.checklist?.length > 0 && (
+            {form.checklist.length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                {form.checklist.map((c, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span>{c.done ? "✅" : "⬜"}</span>
-                    <span
+                {form.checklist.map(function (c, i) {
+                  return (
+                    <div
+                      key={i}
                       style={{
-                        flex: 1,
-                        fontSize: 13,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        marginBottom: 6,
                       }}
                     >
-                      {c.text}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          checklist:
-                            f.checklist.filter(
-                              (_, idx) => idx !== i
-                            ),
-                        }))
-                      }
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: "#D36C7D",
-                        fontWeight: 900,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                      <span>
+                        {c.done ? "✅" : "⬜"}
+                      </span>
+                      <span
+                        style={{ flex: 1, fontSize: 13 }}
+                      >
+                        {c.text}
+                      </span>
+                      <button
+                        onClick={function () {
+                          setForm({
+                            title: form.title,
+                            notes: form.notes,
+                            priority: form.priority,
+                            startDate: form.startDate,
+                            dueDate: form.dueDate,
+                            column: form.column,
+                            labels: form.labels,
+                            checklist:
+                              form.checklist.filter(
+                                function (_, idx) {
+                                  return idx !== i;
+                                }
+                              ),
+                            assignee: form.assignee,
+                            pinned: form.pinned,
+                            comments: form.comments,
+                          });
+                        }}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          color: "#D36C7D",
+                          fontWeight: 900,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -2249,11 +2540,10 @@ export default function App() {
               }}
             >
               <button
-                onClick={() => setShowTaskModal(false)}
-                style={{
-                  ...pillBtn(false),
-                  padding: "12px 16px",
+                onClick={function () {
+                  setShowTaskModal(false);
                 }}
+                style={pillBtn(false)}
                 className="btnlift"
               >
                 Cancel
@@ -2272,22 +2562,30 @@ export default function App() {
         </div>
       )}
 
-      {/* Bucket Modal */}
+      {/* BUCKET MODAL */}
       {showBucketModal && (
         <div
-          onClick={() => setShowBucketModal(false)}
+          onClick={function () {
+            setShowBucketModal(false);
+          }}
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             zIndex: 1000,
             padding: 14,
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            onClick={function (e) {
+              e.stopPropagation();
+            }}
             style={{
               width: "100%",
               maxWidth: 420,
@@ -2312,12 +2610,12 @@ export default function App() {
             </div>
             <input
               value={bucketFormName}
-              onChange={(e) =>
-                setBucketFormName(e.target.value)
-              }
-              onKeyDown={(e) =>
-                e.key === "Enter" && saveBucket()
-              }
+              onChange={function (e) {
+                setBucketFormName(e.target.value);
+              }}
+              onKeyDown={function (e) {
+                if (e.key === "Enter") saveBucket();
+              }}
               placeholder="Project name"
               style={{
                 width: "100%",
@@ -2326,6 +2624,7 @@ export default function App() {
                 border: theme.softBorder,
                 background: theme.inputBg,
                 fontWeight: 850,
+                boxSizing: "border-box",
               }}
             />
             <div
@@ -2337,13 +2636,10 @@ export default function App() {
               }}
             >
               <button
-                onClick={() =>
-                  setShowBucketModal(false)
-                }
-                style={{
-                  ...pillBtn(false),
-                  padding: "12px 16px",
+                onClick={function () {
+                  setShowBucketModal(false);
                 }}
+                style={pillBtn(false)}
                 className="btnlift"
               >
                 Cancel
@@ -2360,22 +2656,30 @@ export default function App() {
         </div>
       )}
 
-      {/* Sync Modal */}
+      {/* SYNC MODAL */}
       {showSyncModal && (
         <div
-          onClick={() => setShowSyncModal(false)}
+          onClick={function () {
+            setShowSyncModal(false);
+          }}
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             zIndex: 1000,
             padding: 14,
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            onClick={function (e) {
+              e.stopPropagation();
+            }}
             style={{
               width: "100%",
               maxWidth: 720,
@@ -2401,8 +2705,7 @@ export default function App() {
 
             <div
               style={{
-                background:
-                  "rgba(247, 169, 196, 0.12)",
+                background: "rgba(247,169,196,0.12)",
                 border: theme.softBorder,
                 borderRadius: 22,
                 padding: 12,
@@ -2418,20 +2721,22 @@ export default function App() {
                 📤 Export
               </div>
               <textarea
-                readOnly
+                readOnly={true}
                 value={syncExportCode}
-                onClick={(e) => e.target.select()}
+                onClick={function (e) {
+                  e.target.select();
+                }}
                 style={{
                   width: "100%",
                   height: 120,
                   padding: 12,
                   borderRadius: 18,
                   border: theme.softBorder,
-                  background:
-                    "rgba(255,255,255,0.85)",
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  background: "rgba(255,255,255,0.85)",
+                  fontFamily: "monospace",
                   fontSize: 11,
+                  boxSizing: "border-box",
+                  resize: "none",
                 }}
               />
               <div
@@ -2453,8 +2758,7 @@ export default function App() {
 
             <div
               style={{
-                background:
-                  "rgba(167, 220, 195, 0.12)",
+                background: "rgba(167,220,195,0.12)",
                 border: theme.softBorder,
                 borderRadius: 22,
                 padding: 12,
@@ -2471,9 +2775,9 @@ export default function App() {
               </div>
               <textarea
                 value={syncImportCode}
-                onChange={(e) =>
-                  setSyncImportCode(e.target.value)
-                }
+                onChange={function (e) {
+                  setSyncImportCode(e.target.value);
+                }}
                 placeholder="Paste code here…"
                 style={{
                   width: "100%",
@@ -2481,11 +2785,11 @@ export default function App() {
                   padding: 12,
                   borderRadius: 18,
                   border: theme.softBorder,
-                  background:
-                    "rgba(255,255,255,0.85)",
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  background: "rgba(255,255,255,0.85)",
+                  fontFamily: "monospace",
                   fontSize: 11,
+                  boxSizing: "border-box",
+                  resize: "none",
                 }}
               />
               <div
@@ -2510,8 +2814,7 @@ export default function App() {
                 style={{
                   padding: 12,
                   borderRadius: 18,
-                  background:
-                    "rgba(179,157,219,0.18)",
+                  background: "rgba(179,157,219,0.18)",
                   border: theme.softBorder,
                   fontWeight: 900,
                 }}
@@ -2528,13 +2831,10 @@ export default function App() {
               }}
             >
               <button
-                onClick={() =>
-                  setShowSyncModal(false)
-                }
-                style={{
-                  ...pillBtn(false),
-                  padding: "12px 16px",
+                onClick={function () {
+                  setShowSyncModal(false);
                 }}
+                style={pillBtn(false)}
                 className="btnlift"
               >
                 Close
