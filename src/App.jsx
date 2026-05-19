@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-/** ---------------------------
- *  Helpers
- *  --------------------------*/
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const safeParse = (s, fallback) => {
@@ -14,35 +11,22 @@ const safeParse = (s, fallback) => {
   }
 };
 
-const encodeSync = (obj) => {
-  const json = JSON.stringify(obj);
-  return btoa(unescape(encodeURIComponent(json)));
-};
-
-const decodeSync = (code) => {
-  const json = decodeURIComponent(escape(atob(code.trim())));
-  return JSON.parse(json);
-};
+const encodeSync = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+const decodeSync = (code) => JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
 
 const yyyyMmDd = (d) => {
   const dt = new Date(d);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const day = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 };
 
-const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
-const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
-const addMonths = (date, delta) => new Date(date.getFullYear(), date.getMonth() + delta, 1);
+const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
 
 const getCalendarGrid = (monthDate) => {
-  // 6 weeks x 7 days
   const first = startOfMonth(monthDate);
-  const startDayIndex = first.getDay(); // 0=Sun..6=Sat
+  const startIdx = first.getDay();
   const gridStart = new Date(first);
-  gridStart.setDate(first.getDate() - startDayIndex);
-
+  gridStart.setDate(first.getDate() - startIdx);
   const cells = [];
   for (let i = 0; i < 42; i++) {
     const d = new Date(gridStart);
@@ -53,13 +37,17 @@ const getCalendarGrid = (monthDate) => {
       isToday: yyyyMmDd(d) === yyyyMmDd(new Date()),
     });
   }
-  return { cells };
+  return cells;
 };
 
-/** ---------------------------
- *  Defaults
- *  --------------------------*/
 const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
+
+const COL_COLORS = {
+  "To Do": "#DCC8F7",
+  "In Progress": "#F7C2D4",
+  "Review": "#F6D7A9",
+  "Done": "#C8F0D7",
+};
 
 const DEFAULT_BUCKETS = [
   { id: "saddleside", name: "Saddleside" },
@@ -70,17 +58,15 @@ const DEFAULT_BUCKETS = [
   { id: "other", name: "Other" },
 ];
 
-// Girly pastel priorities (task color system)
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 const PRIORITY_EMOJI = { Urgent: "💗", High: "❤️", Medium: "💜", Low: "💚" };
 const PRIORITY_COLORS = {
-  Urgent: "#F7C2D4", // pastel pink
-  High: "#F3B3B3",   // pastel red
-  Medium: "#DCC8F7", // pastel purple
-  Low: "#C8F0D7",    // pastel green
+  Urgent: "#F7C2D4",
+  High: "#F3B3B3",
+  Medium: "#DCC8F7",
+  Low: "#C8F0D7",
 };
 
-// Cute labels (optional)
 const LABELS = [
   { name: "Important", color: "#F3B3B3" },
   { name: "Call", color: "#F7C2D4" },
@@ -90,7 +76,6 @@ const LABELS = [
   { name: "Personal", color: "#BEE9F7" },
 ];
 
-// Bucket dot colors (soft, Pinterest-like)
 const BUCKET_DOTS = {
   saddleside: "#BFD7F2",
   legacy: "#BFEAD2",
@@ -100,32 +85,30 @@ const BUCKET_DOTS = {
   other: "#D6DCE6",
 };
 
-/** ---------------------------
- *  App
- *  --------------------------*/
 export default function App() {
-  // Views: "board" | "month"
-  const [view, setView] = useState(() => localStorage.getItem("p_view") || "board");
+  const [view, setView] = useState(
+    () => localStorage.getItem("p_view") || "dashboard"
+  );
+  const [buckets, setBuckets] = useState(
+    () => safeParse(localStorage.getItem("p_buckets"), DEFAULT_BUCKETS)
+  );
+  const [tasks, setTasks] = useState(
+    () => safeParse(localStorage.getItem("p_tasks"), [])
+  );
 
-  // Data
-  const [buckets, setBuckets] = useState(() =>
-    safeParse(localStorage.getItem("p_buckets"), DEFAULT_BUCKETS)
-  );
-  const [currentBucketId, setCurrentBucketId] = useState(() =>
-    localStorage.getItem("p_currentBucket") || DEFAULT_BUCKETS[0].id
-  );
-  const [tasks, setTasks] = useState(() => safeParse(localStorage.getItem("p_tasks"), []));
+  // Collapsed state per bucket
+  const [collapsed, setCollapsed] = useState({});
 
   // UI
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPriority, setFilterPriority] = useState("All");
-  const [sortBy, setSortBy] = useState("none"); // none|priority|dueDate|name
+  const [sortBy, setSortBy] = useState("none");
   const [viewingTaskId, setViewingTaskId] = useState(null);
-  const [dragTaskId, setDragTaskId] = useState(null);
 
   // Modals
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [taskBucketId, setTaskBucketId] = useState(null);
 
   const [showBucketModal, setShowBucketModal] = useState(false);
   const [bucketFormName, setBucketFormName] = useState("");
@@ -137,8 +120,12 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState("");
 
   // Calendar
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
-  const [selectedDay, setSelectedDay] = useState(() => yyyyMmDd(new Date()));
+  const [monthCursor, setMonthCursor] = useState(
+    () => startOfMonth(new Date())
+  );
+  const [selectedDay, setSelectedDay] = useState(
+    () => yyyyMmDd(new Date())
+  );
 
   // Task form
   const [form, setForm] = useState({
@@ -155,27 +142,21 @@ export default function App() {
     comments: [],
   });
 
-  /** ---------------------------
-   *  Persist
-   *  --------------------------*/
-  useEffect(() => localStorage.setItem("p_view", view), [view]);
-  useEffect(() => localStorage.setItem("p_buckets", JSON.stringify(buckets)), [buckets]);
-  useEffect(() => localStorage.setItem("p_currentBucket", currentBucketId), [currentBucketId]);
-  useEffect(() => localStorage.setItem("p_tasks", JSON.stringify(tasks)), [tasks]);
-
-  /** ---------------------------
-   *  Derived
-   *  --------------------------*/
-  const currentBucket = useMemo(
-    () => buckets.find((b) => b.id === currentBucketId) || buckets[0],
-    [buckets, currentBucketId]
+  // Persist
+  useEffect(
+    () => localStorage.setItem("p_view", view),
+    [view]
+  );
+  useEffect(
+    () => localStorage.setItem("p_buckets", JSON.stringify(buckets)),
+    [buckets]
+  );
+  useEffect(
+    () => localStorage.setItem("p_tasks", JSON.stringify(tasks)),
+    [tasks]
   );
 
-  const bucketTasks = useMemo(
-    () => tasks.filter((t) => t.bucketId === currentBucketId),
-    [tasks, currentBucketId]
-  );
-
+  // Helpers
   const isOverdue = (t) => {
     if (!t.dueDate || t.column === "Done") return false;
     const today = new Date();
@@ -185,7 +166,10 @@ export default function App() {
     return due < today;
   };
 
-  const isDueToday = (t) => t.dueDate && yyyyMmDd(t.dueDate) === yyyyMmDd(new Date()) && t.column !== "Done";
+  const isDueToday = (t) =>
+    t.dueDate &&
+    yyyyMmDd(t.dueDate) === yyyyMmDd(new Date()) &&
+    t.column !== "Done";
 
   const isDueSoon = (t) => {
     if (!t.dueDate || t.column === "Done") return false;
@@ -204,26 +188,28 @@ export default function App() {
     return Math.round((done / t.checklist.length) * 100);
   };
 
-  const filteredTasks = useMemo(() => {
+  const filterAndSort = (list) => {
     const q = searchQuery.trim().toLowerCase();
-    return bucketTasks.filter((t) => {
-      const matchesSearch =
+    let filtered = list.filter((t) => {
+      const ms =
         !q ||
         t.title.toLowerCase().includes(q) ||
         (t.notes || "").toLowerCase().includes(q) ||
         (t.assignee || "").toLowerCase().includes(q);
-
-      const matchesPriority = filterPriority === "All" || t.priority === filterPriority;
-      return matchesSearch && matchesPriority;
+      const mp =
+        filterPriority === "All" || t.priority === filterPriority;
+      return ms && mp;
     });
-  }, [bucketTasks, searchQuery, filterPriority]);
 
-  const sortTasks = (list) => {
-    const pinned = list.filter((t) => t.pinned);
-    const rest = list.filter((t) => !t.pinned);
+    const pinned = filtered.filter((t) => t.pinned);
+    const rest = filtered.filter((t) => !t.pinned);
 
     if (sortBy === "priority") {
-      rest.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2));
+      rest.sort(
+        (a, b) =>
+          (PRIORITY_ORDER[a.priority] ?? 2) -
+          (PRIORITY_ORDER[b.priority] ?? 2)
+      );
     } else if (sortBy === "dueDate") {
       rest.sort((a, b) => {
         if (!a.dueDate) return 1;
@@ -233,21 +219,20 @@ export default function App() {
     } else if (sortBy === "name") {
       rest.sort((a, b) => a.title.localeCompare(b.title));
     }
+
     return [...pinned, ...rest];
   };
 
-  /** ---------------------------
-   *  Sync
-   *  --------------------------*/
+  // Sync
   const openSync = () => {
-    const payload = {
-      v: 1,
-      exportedAt: new Date().toISOString(),
-      buckets,
-      currentBucketId,
-      tasks,
-    };
-    setSyncExportCode(encodeSync(payload));
+    setSyncExportCode(
+      encodeSync({
+        v: 1,
+        exportedAt: new Date().toISOString(),
+        buckets,
+        tasks,
+      })
+    );
     setSyncImportCode("");
     setSyncMessage("");
     setShowSyncModal(true);
@@ -256,9 +241,11 @@ export default function App() {
   const copySyncCode = async () => {
     try {
       await navigator.clipboard.writeText(syncExportCode);
-      setSyncMessage("✅ Copied! Paste it on your phone to import.");
+      setSyncMessage("✅ Copied! Paste it on your other device.");
     } catch {
-      setSyncMessage("⚠️ Tap the code → Select All → Copy (manual).");
+      setSyncMessage(
+        "⚠️ Tap the code → Select All → Copy."
+      );
     }
   };
 
@@ -270,22 +257,19 @@ export default function App() {
     try {
       const data = decodeSync(syncImportCode);
       if (Array.isArray(data.tasks)) setTasks(data.tasks);
-      if (Array.isArray(data.buckets)) setBuckets(data.buckets);
-      if (data.currentBucketId) setCurrentBucketId(data.currentBucketId);
-
-      setSyncMessage("✅ Imported! This device is updated.");
+      if (Array.isArray(data.buckets))
+        setBuckets(data.buckets);
+      setSyncMessage("✅ Imported!");
       setTimeout(() => {
         setShowSyncModal(false);
         setSyncMessage("");
       }, 1200);
     } catch {
-      setSyncMessage("❌ Invalid code. Make sure you copied the FULL code.");
+      setSyncMessage("❌ Invalid code.");
     }
   };
 
-  /** ---------------------------
-   *  Bucket CRUD
-   *  --------------------------*/
+  // Bucket CRUD
   const openBucketEditor = (b) => {
     if (b) {
       setEditingBucketId(b.id);
@@ -300,31 +284,30 @@ export default function App() {
   const saveBucket = () => {
     const name = bucketFormName.trim();
     if (!name) return;
-
     if (editingBucketId) {
-      setBuckets((prev) => prev.map((b) => (b.id === editingBucketId ? { ...b, name } : b)));
+      setBuckets((prev) =>
+        prev.map((b) =>
+          b.id === editingBucketId ? { ...b, name } : b
+        )
+      );
     } else {
       const id = uid();
       setBuckets((prev) => [...prev, { id, name }]);
-      setCurrentBucketId(id);
     }
     setShowBucketModal(false);
   };
 
   const deleteBucket = (bid) => {
-    if (buckets.length <= 1) return alert("You need at least one bucket.");
-    if (!confirm("Delete this bucket and all its tasks?")) return;
-
-    const remaining = buckets.filter((b) => b.id !== bid);
-    setBuckets(remaining);
+    if (buckets.length <= 1)
+      return alert("You need at least one bucket.");
+    if (!confirm("Delete this bucket and all its tasks?"))
+      return;
+    setBuckets((prev) => prev.filter((b) => b.id !== bid));
     setTasks((prev) => prev.filter((t) => t.bucketId !== bid));
-    if (currentBucketId === bid) setCurrentBucketId(remaining[0].id);
   };
 
-  /** ---------------------------
-   *  Task CRUD
-   *  --------------------------*/
-  const openNewTask = (column = "To Do") => {
+  // Task CRUD
+  const openNewTask = (bucketId, column = "To Do") => {
     setForm({
       title: "",
       notes: "",
@@ -338,6 +321,7 @@ export default function App() {
       pinned: false,
       comments: [],
     });
+    setTaskBucketId(bucketId);
     setEditingTaskId(null);
     setShowTaskModal(true);
   };
@@ -356,21 +340,29 @@ export default function App() {
       pinned: !!t.pinned,
       comments: t.comments || [],
     });
+    setTaskBucketId(t.bucketId);
     setEditingTaskId(t.id);
     setShowTaskModal(true);
   };
 
   const upsertTask = () => {
-    if (!form.title.trim()) return alert("Please enter a task title.");
-
+    if (!form.title.trim())
+      return alert("Please enter a task title.");
     if (editingTaskId) {
       setTasks((prev) =>
-        prev.map((t) => (t.id === editingTaskId ? { ...t, ...form } : t))
+        prev.map((t) =>
+          t.id === editingTaskId ? { ...t, ...form } : t
+        )
       );
     } else {
       setTasks((prev) => [
         ...prev,
-        { id: uid(), createdAt: new Date().toISOString(), bucketId: currentBucketId, ...form },
+        {
+          id: uid(),
+          createdAt: new Date().toISOString(),
+          bucketId: taskBucketId,
+          ...form,
+        },
       ]);
     }
     setShowTaskModal(false);
@@ -384,18 +376,26 @@ export default function App() {
   };
 
   const moveTask = (id, column) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, column } : t)));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, column } : t))
+    );
   };
 
   const togglePin = (id) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)));
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, pinned: !t.pinned } : t
+      )
+    );
   };
 
   const toggleChecklist = (taskId, idx) => {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskId) return t;
-        const list = (t.checklist || []).map((c, i) => (i === idx ? { ...c, done: !c.done } : c));
+        const list = (t.checklist || []).map((c, i) =>
+          i === idx ? { ...c, done: !c.done } : c
+        );
         return { ...t, checklist: list };
       })
     );
@@ -407,26 +407,25 @@ export default function App() {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskId) return t;
-        const comments = [...(t.comments || []), { text: msg.trim(), date: new Date().toLocaleString() }];
-        return { ...t, comments };
+        return {
+          ...t,
+          comments: [
+            ...(t.comments || []),
+            {
+              text: msg.trim(),
+              date: new Date().toLocaleString(),
+            },
+          ],
+        };
       })
     );
   };
 
-  /** ---------------------------
-   *  Drag & Drop
-   *  --------------------------*/
-  const onDragStart = (id) => setDragTaskId(id);
-  const onDropColumn = (col) => {
-    if (!dragTaskId) return;
-    moveTask(dragTaskId, col);
-    setDragTaskId(null);
-  };
-
-  /** ---------------------------
-   *  Month Calendar
-   *  --------------------------*/
-  const { cells } = useMemo(() => getCalendarGrid(monthCursor), [monthCursor]);
+  // Calendar
+  const cells = useMemo(
+    () => getCalendarGrid(monthCursor),
+    [monthCursor]
+  );
 
   const tasksByDueDate = useMemo(() => {
     const map = new Map();
@@ -436,44 +435,37 @@ export default function App() {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(t);
     }
-    for (const [k, list] of map.entries()) {
-      list.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2));
-      map.set(k, list);
-    }
     return map;
   }, [tasks]);
 
-  const selectedDayTasks = useMemo(() => tasksByDueDate.get(selectedDay) || [], [tasksByDueDate, selectedDay]);
+  const selectedDayTasks = useMemo(
+    () => tasksByDueDate.get(selectedDay) || [],
+    [tasksByDueDate, selectedDay]
+  );
 
-  /** ---------------------------
-   *  Pinterest Aesthetic Theme
-   *  --------------------------*/
+  // Stats
+  const allTotal = tasks.length;
+  const allDone = tasks.filter(
+    (t) => t.column === "Done"
+  ).length;
+  const allOverdue = tasks.filter((t) => isOverdue(t)).length;
+
+  // Theme
   const theme = {
     bg: "linear-gradient(180deg, #FBF7FF 0%, #F7FBFF 40%, #FDF7FB 100%)",
-    header: "linear-gradient(135deg, #DCE7F6 0%, #EADCF6 50%, #F6DCEB 100%)",
+    header:
+      "linear-gradient(135deg, #DCE7F6 0%, #EADCF6 50%, #F6DCEB 100%)",
     text: "#2E3A4A",
     subtext: "#6B7A90",
     card: "#FFFFFF",
     cardShadow: "0 12px 30px rgba(30, 60, 90, 0.08)",
-    cardHoverShadow: "0 18px 40px rgba(30, 60, 90, 0.12)",
     softBorder: "1px solid rgba(200, 214, 235, 0.55)",
     pill: "rgba(255,255,255,0.65)",
-    accent: "#B39DDB", // lilac accent
-    accent2: "#F7A9C4", // blush
-    accent3: "#A7DCC3", // mint
+    accent: "#B39DDB",
+    accent2: "#F7A9C4",
+    accent3: "#A7DCC3",
     inputBg: "rgba(255,255,255,0.85)",
   };
-
-  /** ---------------------------
-   *  Stats
-   *  --------------------------*/
-  const stats = useMemo(() => {
-    const total = bucketTasks.length;
-    const done = bucketTasks.filter((t) => t.column === "Done").length;
-    const overdue = bucketTasks.filter((t) => isOverdue(t)).length;
-    const dueSoon = bucketTasks.filter((t) => isDueSoon(t) || isDueToday(t)).length;
-    return { total, done, overdue, dueSoon };
-  }, [bucketTasks]);
 
   const pillBtn = (active = false) => ({
     border: "none",
@@ -483,9 +475,12 @@ export default function App() {
     fontWeight: 800,
     fontSize: 13,
     color: theme.text,
-    background: active ? "rgba(255,255,255,0.92)" : theme.pill,
-    boxShadow: active ? "0 10px 24px rgba(0,0,0,0.06)" : "none",
-    transition: "transform 140ms ease, box-shadow 140ms ease",
+    background: active
+      ? "rgba(255,255,255,0.92)"
+      : theme.pill,
+    boxShadow: active
+      ? "0 10px 24px rgba(0,0,0,0.06)"
+      : "none",
   });
 
   const softBtn = (bg) => ({
@@ -497,108 +492,151 @@ export default function App() {
     color: "#fff",
     background: bg,
     boxShadow: "0 14px 28px rgba(0,0,0,0.10)",
-    transition: "transform 140ms ease, box-shadow 140ms ease",
   });
 
-  /** ---------------------------
-   *  Render
-   *  --------------------------*/
+  // Toggle collapse
+  const toggleCollapse = (bid) => {
+    setCollapsed((prev) => ({
+      ...prev,
+      [bid]: !prev[bid],
+    }));
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "Segoe UI, system-ui, -apple-system, sans-serif" }}>
-      {/* Little CSS for hover lift */}
+    <div
+      style={{
+        minHeight: "100vh",
+        background: theme.bg,
+        color: theme.text,
+        fontFamily:
+          "Segoe UI, system-ui, -apple-system, sans-serif",
+      }}
+    >
       <style>{`
-        .lift:hover { transform: translateY(-2px); box-shadow: ${theme.cardHoverShadow}; }
+        .lift:hover { transform: translateY(-2px); box-shadow: 0 18px 40px rgba(30,60,90,0.12); }
         .btnlift:hover { transform: translateY(-1px); box-shadow: 0 18px 34px rgba(0,0,0,0.12); }
         ::selection { background: rgba(247, 169, 196, 0.45); }
       `}</style>
 
       {/* Header */}
-      <header style={{ background: theme.header, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.10)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 14,
-              background: "rgba(255,255,255,0.85)",
-              display: "grid", placeItems: "center",
-              boxShadow: "0 12px 26px rgba(0,0,0,0.10)",
-              fontSize: 20
-            }}>🧁</div>
+      <header
+        style={{
+          background: theme.header,
+          padding: 16,
+          boxShadow: "0 18px 50px rgba(0,0,0,0.10)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.85)",
+                display: "grid",
+                placeItems: "center",
+                boxShadow: "0 12px 26px rgba(0,0,0,0.10)",
+                fontSize: 20,
+              }}
+            >
+              🧁
+            </div>
             <div>
-              <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>My Planner</div>
-              <div style={{ fontSize: 12, color: theme.subtext, fontWeight: 700 }}>
-                📊 {stats.total} • ✅ {stats.done}
-                {stats.overdue ? ` • ⚠️ ${stats.overdue}` : ""}
-                {stats.dueSoon ? ` • 🔔 ${stats.dueSoon}` : ""}
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 950,
+                  letterSpacing: 0.2,
+                }}
+              >
+                My Planner
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: theme.subtext,
+                  fontWeight: 700,
+                }}
+              >
+                📊 {allTotal} total • ✅ {allDone} done
+                {allOverdue > 0
+                  ? ` • ⚠️ ${allOverdue} overdue`
+                  : ""}
               </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button style={pillBtn(view === "board")} onClick={() => setView("board")} className="btnlift">📋 Board</button>
-            <button style={pillBtn(view === "month")} onClick={() => setView("month")} className="btnlift">🗓️ Month</button>
-            <button style={pillBtn(false)} onClick={openSync} className="btnlift">🔄 Sync</button>
-            <button style={pillBtn(false)} onClick={() => openBucketEditor(null)} className="btnlift">+ Bucket</button>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              style={pillBtn(view === "dashboard")}
+              onClick={() => setView("dashboard")}
+              className="btnlift"
+            >
+              📋 All Projects
+            </button>
+            <button
+              style={pillBtn(view === "month")}
+              onClick={() => setView("month")}
+              className="btnlift"
+            >
+              🗓️ Month
+            </button>
+            <button
+              style={pillBtn(false)}
+              onClick={openSync}
+              className="btnlift"
+            >
+              🔄 Sync
+            </button>
+            <button
+              style={pillBtn(false)}
+              onClick={() => openBucketEditor(null)}
+              className="btnlift"
+            >
+              + Project
+            </button>
           </div>
-        </div>
-
-        {/* Bucket tabs */}
-        <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {buckets.map((b) => {
-            const active = b.id === currentBucketId;
-            const count = tasks.filter((t) => t.bucketId === b.id).length;
-            return (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button
-                  style={{
-                    ...pillBtn(active),
-                    padding: "10px 12px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8
-                  }}
-                  onClick={() => {
-                    setCurrentBucketId(b.id);
-                    setViewingTaskId(null);
-                  }}
-                  className="btnlift"
-                >
-                  <span style={{ width: 10, height: 10, borderRadius: 999, background: BUCKET_DOTS[b.id] || theme.accent }} />
-                  {b.name}
-                  <span style={{ opacity: 0.7, fontSize: 12 }}>({count})</span>
-                </button>
-
-                {active && (
-                  <>
-                    <button
-                      onClick={() => openBucketEditor(b)}
-                      style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 900, color: theme.subtext }}
-                      title="Rename"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => deleteBucket(b.id)}
-                      style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 900, color: "#D36C7D" }}
-                      title="Delete"
-                    >
-                      ✕
-                    </button>
-                  </>
-                )}
-              </div>
-            );
-          })}
         </div>
       </header>
 
       {/* Toolbar */}
-      <div style={{ padding: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+      <div
+        style={{
+          padding: 14,
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={`Search in ${currentBucket?.name || "bucket"}...`}
+          placeholder="🔍 Search all tasks..."
           style={{
-            flex: 1, minWidth: 220,
+            flex: 1,
+            minWidth: 220,
             padding: "12px 14px",
             borderRadius: 18,
             border: theme.softBorder,
@@ -606,7 +644,7 @@ export default function App() {
             outline: "none",
             boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
             fontWeight: 700,
-            color: theme.text
+            color: theme.text,
           }}
         />
 
@@ -620,7 +658,7 @@ export default function App() {
             background: theme.inputBg,
             boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
             fontWeight: 800,
-            color: theme.text
+            color: theme.text,
           }}
         >
           <option value="All">All priorities</option>
@@ -640,7 +678,7 @@ export default function App() {
             background: theme.inputBg,
             boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
             fontWeight: 800,
-            color: theme.text
+            color: theme.text,
           }}
         >
           <option value="none">Sort: default</option>
@@ -648,281 +686,932 @@ export default function App() {
           <option value="dueDate">Sort: due date</option>
           <option value="name">Sort: name</option>
         </select>
-
-        <button onClick={() => openNewTask("To Do")} style={softBtn(theme.accent)} className="btnlift">
-          + New Task
-        </button>
       </div>
 
-      {/* Board */}
-      {view === "board" && (
-        <div style={{ padding: 14, display: "flex", gap: 14, overflowX: "auto" }}>
-          {COLUMNS.map((col) => {
-            const colTasks = sortTasks(filteredTasks.filter((t) => t.column === col));
+      {/* =====================
+          DASHBOARD VIEW
+          ===================== */}
+      {view === "dashboard" && (
+        <div style={{ padding: "0 14px 30px" }}>
+          {buckets.map((bucket) => {
+            const bucketTasksRaw = tasks.filter(
+              (t) => t.bucketId === bucket.id
+            );
+            const bucketTasksFiltered = filterAndSort(
+              bucketTasksRaw
+            );
+            const done = bucketTasksRaw.filter(
+              (t) => t.column === "Done"
+            ).length;
+            const total = bucketTasksRaw.length;
+            const pct =
+              total > 0
+                ? Math.round((done / total) * 100)
+                : 0;
+            const isCollapsed = collapsed[bucket.id];
+            const dot =
+              BUCKET_DOTS[bucket.id] || theme.accent;
+
             return (
               <div
-                key={col}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => onDropColumn(col)}
+                key={bucket.id}
                 style={{
-                  minWidth: 320,
-                  maxWidth: 420,
-                  flex: 1,
-                  background: "rgba(255,255,255,0.55)",
+                  marginBottom: 18,
+                  background: "rgba(255,255,255,0.60)",
                   border: theme.softBorder,
-                  borderRadius: 24,
-                  padding: 14,
-                  boxShadow: "0 18px 40px rgba(0,0,0,0.06)"
+                  borderRadius: 28,
+                  overflow: "hidden",
+                  boxShadow:
+                    "0 18px 40px rgba(0,0,0,0.06)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontWeight: 950, fontSize: 15 }}>{col}</div>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 999,
-                    background: "rgba(179,157,219,0.25)",
-                    display: "grid", placeItems: "center",
-                    fontWeight: 950
-                  }}>
-                    {colTasks.length}
+                {/* Bucket Header */}
+                <div
+                  onClick={() =>
+                    toggleCollapse(bucket.id)
+                  }
+                  style={{
+                    padding: "16px 18px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    background:
+                      "rgba(255,255,255,0.55)",
+                    flexWrap: "wrap",
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 999,
+                        background: dot,
+                        display: "inline-block",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: 17,
+                        fontWeight: 950,
+                      }}
+                    >
+                      {bucket.name}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: theme.subtext,
+                      }}
+                    >
+                      {done}/{total} done
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 20,
+                        color: theme.subtext,
+                      }}
+                    >
+                      {isCollapsed ? "▸" : "▾"}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Progress bar */}
+                    <div
+                      style={{
+                        width: 120,
+                        height: 10,
+                        borderRadius: 999,
+                        background:
+                          "rgba(0,0,0,0.06)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          background:
+                            pct === 100
+                              ? theme.accent3
+                              : dot,
+                          borderRadius: 999,
+                          transition:
+                            "width 0.3s",
+                        }}
+                      />
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                        color: theme.subtext,
+                      }}
+                    >
+                      {pct}%
+                    </span>
+
+                    <button
+                      onClick={() =>
+                        openNewTask(bucket.id)
+                      }
+                      style={softBtn(theme.accent)}
+                      className="btnlift"
+                    >
+                      + Task
+                    </button>
+                    <button
+                      onClick={() =>
+                        openBucketEditor(bucket)
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: 14,
+                      }}
+                      title="Rename"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() =>
+                        deleteBucket(bucket.id)
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        color: "#D36C7D",
+                      }}
+                      title="Delete"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {colTasks.map((t) => {
-                    const expanded = viewingTaskId === t.id;
-                    const progress = getProgress(t);
-                    const overdue = isOverdue(t);
-                    const dueToday = isDueToday(t);
-                    const dueSoon = isDueSoon(t);
+                {/* Tasks */}
+                {!isCollapsed && (
+                  <div
+                    style={{
+                      padding: "10px 18px 18px",
+                    }}
+                  >
+                    {/* Column group headers */}
+                    {COLUMNS.map((col) => {
+                      const colTasks =
+                        bucketTasksFiltered.filter(
+                          (t) => t.column === col
+                        );
+                      if (colTasks.length === 0)
+                        return null;
 
-                    const tint = PRIORITY_COLORS[t.priority] + "55"; // tinted background
-                    const border = PRIORITY_COLORS[t.priority];
+                      return (
+                        <div
+                          key={col}
+                          style={{
+                            marginBottom: 14,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              marginBottom: 8,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: 999,
+                                background:
+                                  COL_COLORS[col] ||
+                                  "#ccc",
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 950,
+                                color: theme.subtext,
+                              }}
+                            >
+                              {col} ({colTasks.length})
+                            </span>
+                          </div>
 
-                    return (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 10,
+                            }}
+                          >
+                            {colTasks.map((t) => {
+                              const expanded =
+                                viewingTaskId === t.id;
+                              const progress =
+                                getProgress(t);
+                              const overdue =
+                                isOverdue(t);
+                              const dueToday =
+                                isDueToday(t);
+                              const dueSoon =
+                                isDueSoon(t);
+                              const tint =
+                                PRIORITY_COLORS[
+                                  t.priority
+                                ] + "55";
+
+                              return (
+                                <div
+                                  key={t.id}
+                                  className="lift"
+                                  onClick={() =>
+                                    setViewingTaskId(
+                                      expanded
+                                        ? null
+                                        : t.id
+                                    )
+                                  }
+                                  style={{
+                                    background: tint,
+                                    border:
+                                      "1px solid rgba(0,0,0,0.03)",
+                                    borderLeft: `10px solid ${PRIORITY_COLORS[t.priority]}`,
+                                    borderRadius: 22,
+                                    padding: 12,
+                                    width: 300,
+                                    cursor: "pointer",
+                                    boxShadow:
+                                      theme.cardShadow,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {t.pinned && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: 950,
+                                        color:
+                                          "#7B6AA9",
+                                        marginBottom: 4,
+                                      }}
+                                    >
+                                      📌 PINNED
+                                    </div>
+                                  )}
+
+                                  <div
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: 950,
+                                      marginBottom: 4,
+                                    }}
+                                  >
+                                    {t.title}
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: 8,
+                                      flexWrap: "wrap",
+                                      alignItems:
+                                        "center",
+                                      marginBottom: 6,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        padding:
+                                          "3px 10px",
+                                        borderRadius: 999,
+                                        background:
+                                          "rgba(255,255,255,0.65)",
+                                        fontWeight: 900,
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      {
+                                        PRIORITY_EMOJI[
+                                          t.priority
+                                        ]
+                                      }{" "}
+                                      {t.priority}
+                                    </span>
+
+                                    {t.assignee && (
+                                      <span
+                                        style={{
+                                          fontSize: 12,
+                                          fontWeight: 800,
+                                          color:
+                                            "#44546B",
+                                        }}
+                                      >
+                                        👤{" "}
+                                        {t.assignee}
+                                      </span>
+                                    )}
+
+                                    {overdue && (
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 950,
+                                          color:
+                                            "#B5475A",
+                                        }}
+                                      >
+                                        ⚠️ OVERDUE
+                                      </span>
+                                    )}
+                                    {dueToday && (
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 950,
+                                          color:
+                                            "#B1762B",
+                                        }}
+                                      >
+                                        📌 TODAY
+                                      </span>
+                                    )}
+                                    {dueSoon && (
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 950,
+                                          color:
+                                            "#8E7A2A",
+                                        }}
+                                      >
+                                        🔔 SOON
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {(t.startDate ||
+                                    t.dueDate) && (
+                                    <div
+                                      style={{
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        color:
+                                          theme.subtext,
+                                        marginBottom: 6,
+                                      }}
+                                    >
+                                      {t.startDate && (
+                                        <div>
+                                          📅 Start:{" "}
+                                          {t.startDate}
+                                        </div>
+                                      )}
+                                      {t.dueDate && (
+                                        <div>
+                                          ⏰ Due:{" "}
+                                          {t.dueDate}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {progress !==
+                                    null && (
+                                    <div
+                                      style={{
+                                        marginBottom: 6,
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          height: 8,
+                                          borderRadius: 999,
+                                          background:
+                                            "rgba(255,255,255,0.65)",
+                                          overflow:
+                                            "hidden",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            height:
+                                              "100%",
+                                            width: `${progress}%`,
+                                            background:
+                                              progress ===
+                                              100
+                                                ? "#7FC49B"
+                                                : "#7FB7D9",
+                                          }}
+                                        />
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 900,
+                                          color:
+                                            theme.subtext,
+                                          marginTop: 4,
+                                        }}
+                                      >
+                                        {progress}%
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {!expanded &&
+                                    t.comments
+                                      ?.length >
+                                      0 && (
+                                      <div
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          color:
+                                            theme.subtext,
+                                        }}
+                                      >
+                                        💬{" "}
+                                        {
+                                          t.comments
+                                            .length
+                                        }{" "}
+                                        comment
+                                        {t.comments
+                                          .length === 1
+                                          ? ""
+                                          : "s"}
+                                      </div>
+                                    )}
+
+                                  {/* Expanded */}
+                                  {expanded && (
+                                    <div
+                                      style={{
+                                        marginTop: 10,
+                                        paddingTop: 10,
+                                        borderTop:
+                                          "1px solid rgba(255,255,255,0.7)",
+                                      }}
+                                    >
+                                      {t.notes && (
+                                        <div
+                                          style={{
+                                            marginBottom: 10,
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 950,
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            📝 Notes
+                                          </div>
+                                          <div
+                                            style={{
+                                              fontSize: 13,
+                                              fontWeight: 700,
+                                              color:
+                                                "#3A485B",
+                                              whiteSpace:
+                                                "pre-wrap",
+                                            }}
+                                          >
+                                            {t.notes}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {t.checklist
+                                        ?.length >
+                                        0 && (
+                                        <div
+                                          style={{
+                                            marginBottom: 10,
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 950,
+                                              marginBottom: 6,
+                                            }}
+                                          >
+                                            ☑️
+                                            Checklist
+                                          </div>
+                                          {t.checklist.map(
+                                            (
+                                              c,
+                                              i
+                                            ) => (
+                                              <div
+                                                key={
+                                                  i
+                                                }
+                                                onClick={(
+                                                  e
+                                                ) => {
+                                                  e.stopPropagation();
+                                                  toggleChecklist(
+                                                    t.id,
+                                                    i
+                                                  );
+                                                }}
+                                                style={{
+                                                  display:
+                                                    "flex",
+                                                  gap: 8,
+                                                  alignItems:
+                                                    "center",
+                                                  fontSize: 13,
+                                                  padding:
+                                                    "3px 0",
+                                                  fontWeight: 750,
+                                                  cursor:
+                                                    "pointer",
+                                                }}
+                                              >
+                                                <span>
+                                                  {c.done
+                                                    ? "✅"
+                                                    : "⬜"}
+                                                </span>
+                                                <span
+                                                  style={{
+                                                    textDecoration:
+                                                      c.done
+                                                        ? "line-through"
+                                                        : "none",
+                                                    color:
+                                                      c.done
+                                                        ? theme.subtext
+                                                        : theme.text,
+                                                  }}
+                                                >
+                                                  {
+                                                    c.text
+                                                  }
+                                                </span>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {t.comments
+                                        ?.length >
+                                        0 && (
+                                        <div
+                                          style={{
+                                            marginBottom: 10,
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 950,
+                                              marginBottom: 6,
+                                            }}
+                                          >
+                                            💬
+                                            Comments
+                                          </div>
+                                          {t.comments.map(
+                                            (
+                                              c,
+                                              i
+                                            ) => (
+                                              <div
+                                                key={
+                                                  i
+                                                }
+                                                style={{
+                                                  background:
+                                                    "rgba(255,255,255,0.65)",
+                                                  borderRadius: 14,
+                                                  padding: 10,
+                                                  marginBottom: 6,
+                                                }}
+                                              >
+                                                <div
+                                                  style={{
+                                                    fontSize: 13,
+                                                  }}
+                                                >
+                                                  {
+                                                    c.text
+                                                  }
+                                                </div>
+                                                <div
+                                                  style={{
+                                                    fontSize: 11,
+                                                    color:
+                                                      theme.subtext,
+                                                    marginTop: 4,
+                                                  }}
+                                                >
+                                                  {
+                                                    c.date
+                                                  }
+                                                </div>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Move */}
+                                      <div
+                                        style={{
+                                          display:
+                                            "flex",
+                                          gap: 8,
+                                          flexWrap:
+                                            "wrap",
+                                          marginBottom: 10,
+                                        }}
+                                      >
+                                        {COLUMNS.filter(
+                                          (c) =>
+                                            c !==
+                                            t.column
+                                        ).map(
+                                          (c) => (
+                                            <button
+                                              key={c}
+                                              onClick={(
+                                                e
+                                              ) => {
+                                                e.stopPropagation();
+                                                moveTask(
+                                                  t.id,
+                                                  c
+                                                );
+                                              }}
+                                              style={{
+                                                border:
+                                                  "none",
+                                                background:
+                                                  "rgba(255,255,255,0.75)",
+                                                borderRadius: 999,
+                                                padding:
+                                                  "8px 10px",
+                                                cursor:
+                                                  "pointer",
+                                                fontWeight: 900,
+                                                fontSize: 12,
+                                                color:
+                                                  "#4A5568",
+                                              }}
+                                              className="btnlift"
+                                            >
+                                              →{" "}
+                                              {c}
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
+
+                                      {/* Action btns */}
+                                      <div
+                                        style={{
+                                          display:
+                                            "flex",
+                                          gap: 10,
+                                          flexWrap:
+                                            "wrap",
+                                        }}
+                                      >
+                                        <button
+                                          onClick={(
+                                            e
+                                          ) => {
+                                            e.stopPropagation();
+                                            togglePin(
+                                              t.id
+                                            );
+                                          }}
+                                          style={softBtn(
+                                            t.pinned
+                                              ? theme.accent2
+                                              : theme.accent
+                                          )}
+                                          className="btnlift"
+                                        >
+                                          {t.pinned
+                                            ? "📌 Unpin"
+                                            : "📌 Pin"}
+                                        </button>
+                                        <button
+                                          onClick={(
+                                            e
+                                          ) => {
+                                            e.stopPropagation();
+                                            openEditTask(
+                                              t
+                                            );
+                                          }}
+                                          style={softBtn(
+                                            "#7FB7D9"
+                                          )}
+                                          className="btnlift"
+                                        >
+                                          ✏️ Edit
+                                        </button>
+                                        <button
+                                          onClick={(
+                                            e
+                                          ) => {
+                                            e.stopPropagation();
+                                            addComment(
+                                              t.id
+                                            );
+                                          }}
+                                          style={softBtn(
+                                            "#F0A9C2"
+                                          )}
+                                          className="btnlift"
+                                        >
+                                          💬
+                                        </button>
+                                        <button
+                                          onClick={(
+                                            e
+                                          ) => {
+                                            e.stopPropagation();
+                                            removeTask(
+                                              t.id
+                                            );
+                                          }}
+                                          style={softBtn(
+                                            "#D36C7D"
+                                          )}
+                                          className="btnlift"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {bucketTasksFiltered.length ===
+                      0 && (
                       <div
-                        key={t.id}
-                        draggable
-                        onDragStart={() => onDragStart(t.id)}
-                        onClick={() => setViewingTaskId(expanded ? null : t.id)}
-                        className="lift"
                         style={{
-                          background: tint,
-                          border: `1px solid rgba(0,0,0,0.03)`,
-                          borderLeft: `10px solid ${border}`,
-                          borderRadius: 22,
-                          padding: 12,
-                          boxShadow: theme.cardShadow,
-                          cursor: "pointer"
+                          padding: 14,
+                          color: theme.subtext,
+                          fontWeight: 800,
                         }}
                       >
-                        {t.pinned && (
-                          <div style={{ fontSize: 11, fontWeight: 950, color: "#7B6AA9", marginBottom: 6 }}>
-                            📌 PINNED
-                          </div>
-                        )}
-
-                        {/* title */}
-                        <div style={{ fontSize: 14, fontWeight: 950, marginBottom: 6 }}>
-                          {t.title}
-                        </div>
-
-                        {/* tags row */}
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                          <span style={{
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                            background: "rgba(255,255,255,0.65)",
-                            fontWeight: 900,
-                            fontSize: 12
-                          }}>
-                            {PRIORITY_EMOJI[t.priority]} {t.priority}
-                          </span>
-
-                          {t.assignee && (
-                            <span style={{ fontSize: 12, fontWeight: 800, color: "#44546B" }}>
-                              👤 {t.assignee}
-                            </span>
-                          )}
-
-                          {overdue && <span style={{ fontSize: 11, fontWeight: 950, color: "#B5475A" }}>⚠️ OVERDUE</span>}
-                          {dueToday && <span style={{ fontSize: 11, fontWeight: 950, color: "#B1762B" }}>📌 TODAY</span>}
-                          {dueSoon && <span style={{ fontSize: 11, fontWeight: 950, color: "#8E7A2A" }}>🔔 SOON</span>}
-                        </div>
-
-                        {/* dates */}
-                        {(t.startDate || t.dueDate) && (
-                          <div style={{ fontSize: 12, fontWeight: 800, color: theme.subtext, marginBottom: 8 }}>
-                            {t.startDate && <div>📅 Start: {t.startDate}</div>}
-                            {t.dueDate && <div>⏰ Due: {t.dueDate}</div>}
-                          </div>
-                        )}
-
-                        {/* progress */}
-                        {progress !== null && (
-                          <div style={{ marginBottom: 8 }}>
-                            <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.65)", overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${progress}%`, background: "#7FB7D9" }} />
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 900, color: theme.subtext, marginTop: 4 }}>
-                              {progress}% complete
-                            </div>
-                          </div>
-                        )}
-
-                        {!expanded && (t.comments?.length > 0) && (
-                          <div style={{ fontSize: 11, fontWeight: 800, color: theme.subtext }}>
-                            💬 {t.comments.length} comment{t.comments.length === 1 ? "" : "s"}
-                          </div>
-                        )}
-
-                        {/* Expanded details */}
-                        {expanded && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.7)" }}>
-                            {t.notes && (
-                              <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 4 }}>📝 Notes</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: "#3A485B", whiteSpace: "pre-wrap" }}>{t.notes}</div>
-                              </div>
-                            )}
-
-                            {t.checklist?.length > 0 && (
-                              <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 6 }}>☑️ Checklist</div>
-                                {t.checklist.map((c, i) => (
-                                  <div
-                                    key={i}
-                                    onClick={(e) => { e.stopPropagation(); toggleChecklist(t.id, i); }}
-                                    style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, padding: "4px 0", fontWeight: 750 }}
-                                  >
-                                    <span>{c.done ? "✅" : "⬜"}</span>
-                                    <span style={{ textDecoration: c.done ? "line-through" : "none", color: c.done ? theme.subtext : theme.text }}>
-                                      {c.text}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                              {COLUMNS.filter((c) => c !== t.column).map((c) => (
-                                <button
-                                  key={c}
-                                  onClick={(e) => { e.stopPropagation(); moveTask(t.id, c); }}
-                                  style={{
-                                    border: "none",
-                                    background: "rgba(255,255,255,0.75)",
-                                    borderRadius: 999,
-                                    padding: "8px 10px",
-                                    cursor: "pointer",
-                                    fontWeight: 900,
-                                    fontSize: 12,
-                                    color: "#4A5568"
-                                  }}
-                                  className="btnlift"
-                                >
-                                  → {c}
-                                </button>
-                              ))}
-                            </div>
-
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); togglePin(t.id); }}
-                                style={softBtn(t.pinned ? theme.accent2 : theme.accent)}
-                                className="btnlift"
-                              >
-                                {t.pinned ? "📌 Unpin" : "📌 Pin"}
-                              </button>
-
-                              <button
-                                onClick={(e) => { e.stopPropagation(); openEditTask(t); }}
-                                style={softBtn("#7FB7D9")}
-                                className="btnlift"
-                              >
-                                ✏️ Edit
-                              </button>
-
-                              <button
-                                onClick={(e) => { e.stopPropagation(); addComment(t.id); }}
-                                style={softBtn("#F0A9C2")}
-                                className="btnlift"
-                              >
-                                💬 Comment
-                              </button>
-
-                              <button
-                                onClick={(e) => { e.stopPropagation(); removeTask(t.id); }}
-                                style={softBtn("#D36C7D")}
-                                className="btnlift"
-                              >
-                                🗑️ Delete
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        No tasks yet — click{" "}
+                        <b>+ Task</b> to add one!
                       </div>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={() => openNewTask(col)}
-                  style={{
-                    width: "100%",
-                    marginTop: 12,
-                    padding: 12,
-                    borderRadius: 22,
-                    border: "2px dashed rgba(179,157,219,0.55)",
-                    background: "rgba(255,255,255,0.55)",
-                    cursor: "pointer",
-                    fontWeight: 950,
-                    color: "#6B7A90"
-                  }}
-                  className="btnlift"
-                >
-                  + Add Task
-                </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Month View */}
+      {/* =====================
+          MONTH VIEW
+          ===================== */}
       {view === "month" && (
         <div style={{ padding: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <button style={pillBtn(false)} className="btnlift" onClick={() => setMonthCursor((d) => addMonths(d, -1))}>◀</button>
-              <div style={{ fontSize: 18, fontWeight: 950 }}>
-                {monthCursor.toLocaleString(undefined, { month: "long", year: "numeric" })}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 10,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                style={pillBtn(false)}
+                className="btnlift"
+                onClick={() =>
+                  setMonthCursor((d) =>
+                    addMonths(d, -1)
+                  )
+                }
+              >
+                ◀
+              </button>
+              <div
+                style={{ fontSize: 18, fontWeight: 950 }}
+              >
+                {monthCursor.toLocaleString(undefined, {
+                  month: "long",
+                  year: "numeric",
+                })}
               </div>
-              <button style={pillBtn(false)} className="btnlift" onClick={() => setMonthCursor((d) => addMonths(d, +1))}>▶</button>
+              <button
+                style={pillBtn(false)}
+                className="btnlift"
+                onClick={() =>
+                  setMonthCursor((d) =>
+                    addMonths(d, +1)
+                  )
+                }
+              >
+                ▶
+              </button>
               <button
                 style={softBtn("#7FB7D9")}
                 className="btnlift"
                 onClick={() => {
-                  setMonthCursor(startOfMonth(new Date()));
+                  setMonthCursor(
+                    startOfMonth(new Date())
+                  );
                   setSelectedDay(yyyyMmDd(new Date()));
                 }}
               >
                 Today
               </button>
             </div>
-
-            <button style={softBtn(theme.accent)} className="btnlift" onClick={() => openNewTask("To Do")}>
-              + New Task
-            </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-              <div key={d} style={{ fontWeight: 950, fontSize: 12, color: theme.subtext, padding: "0 8px" }}>{d}</div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7, 1fr)",
+              gap: 10,
+            }}
+          >
+            {[
+              "Sun",
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri",
+              "Sat",
+            ].map((d) => (
+              <div
+                key={d}
+                style={{
+                  fontWeight: 950,
+                  fontSize: 12,
+                  color: theme.subtext,
+                  padding: "0 8px",
+                }}
+              >
+                {d}
+              </div>
             ))}
 
             {cells.map((c, idx) => {
               const key = yyyyMmDd(c.date);
-              const dayTasks = tasksByDueDate.get(key) || [];
+              const dayTasks =
+                tasksByDueDate.get(key) || [];
               const selected = key === selectedDay;
 
               return (
@@ -931,35 +1620,62 @@ export default function App() {
                   onClick={() => setSelectedDay(key)}
                   className="lift"
                   style={{
-                    background: selected ? "rgba(179,157,219,0.25)" : "rgba(255,255,255,0.70)",
+                    background: selected
+                      ? "rgba(179,157,219,0.25)"
+                      : "rgba(255,255,255,0.70)",
                     border: theme.softBorder,
                     borderRadius: 22,
                     padding: 12,
                     minHeight: 92,
                     cursor: "pointer",
                     opacity: c.inMonth ? 1 : 0.45,
-                    boxShadow: theme.cardShadow
+                    boxShadow: theme.cardShadow,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <div style={{ fontWeight: 950 }}>
                       {c.date.getDate()}
-                      {c.isToday ? <span style={{ marginLeft: 6, color: theme.accent2 }}>●</span> : null}
+                      {c.isToday ? (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            color: theme.accent2,
+                          }}
+                        >
+                          ●
+                        </span>
+                      ) : null}
                     </div>
                     {dayTasks.length > 0 && (
-                      <div style={{
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        background: "rgba(255,255,255,0.75)",
-                        fontWeight: 950,
-                        fontSize: 12
-                      }}>
+                      <div
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          background:
+                            "rgba(255,255,255,0.75)",
+                          fontWeight: 950,
+                          fontSize: 12,
+                        }}
+                      >
                         {dayTasks.length}
                       </div>
                     )}
                   </div>
 
-                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
                     {dayTasks.slice(0, 2).map((t) => (
                       <div
                         key={t.id}
@@ -970,7 +1686,7 @@ export default function App() {
                           fontWeight: 900,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
-                          textOverflow: "ellipsis"
+                          textOverflow: "ellipsis",
                         }}
                         title={t.title}
                       >
@@ -978,7 +1694,13 @@ export default function App() {
                       </div>
                     ))}
                     {dayTasks.length > 2 && (
-                      <div style={{ fontSize: 11, fontWeight: 800, color: theme.subtext }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: theme.subtext,
+                        }}
+                      >
                         + {dayTasks.length - 2} more
                       </div>
                     )}
@@ -988,55 +1710,94 @@ export default function App() {
             })}
           </div>
 
-          <div style={{ marginTop: 16, background: "rgba(255,255,255,0.75)", border: theme.softBorder, borderRadius: 24, padding: 14, boxShadow: theme.cardShadow }}>
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <div style={{ fontWeight: 950 }}>Tasks due on <span style={{ color: theme.accent }}>{selectedDay}</span></div>
-              <div style={{ fontSize: 12, color: theme.subtext, fontWeight: 700 }}>
-                Month view uses <b>Due Date</b>
-              </div>
+          {/* Selected day */}
+          <div
+            style={{
+              marginTop: 16,
+              background: "rgba(255,255,255,0.75)",
+              border: theme.softBorder,
+              borderRadius: 24,
+              padding: 14,
+              boxShadow: theme.cardShadow,
+            }}
+          >
+            <div style={{ fontWeight: 950 }}>
+              Tasks due on{" "}
+              <span style={{ color: theme.accent }}>
+                {selectedDay}
+              </span>
             </div>
-
             {selectedDayTasks.length === 0 ? (
-              <div style={{ marginTop: 10, color: theme.subtext, fontWeight: 800 }}>No tasks due this day.</div>
+              <div
+                style={{
+                  marginTop: 10,
+                  color: theme.subtext,
+                  fontWeight: 800,
+                }}
+              >
+                No tasks due this day.
+              </div>
             ) : (
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
                 {selectedDayTasks.map((t) => {
-                  const bucketName = buckets.find((b) => b.id === t.bucketId)?.name || "Unknown";
+                  const bName =
+                    buckets.find(
+                      (b) => b.id === t.bucketId
+                    )?.name || "?";
                   return (
                     <div
                       key={t.id}
                       className="lift"
                       style={{
-                        background: PRIORITY_COLORS[t.priority] + "55",
+                        background:
+                          PRIORITY_COLORS[
+                            t.priority
+                          ] + "55",
                         borderRadius: 22,
                         padding: 12,
                         borderLeft: `10px solid ${PRIORITY_COLORS[t.priority]}`,
-                        boxShadow: theme.cardShadow
+                        boxShadow: theme.cardShadow,
                       }}
                     >
-                      <div style={{ fontWeight: 950 }}>{t.title}</div>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: theme.subtext, marginTop: 4 }}>
-                        {bucketName} • {t.column} • {PRIORITY_EMOJI[t.priority]} {t.priority}
+                      <div style={{ fontWeight: 950 }}>
+                        {t.title}
                       </div>
-
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: theme.subtext,
+                          marginTop: 4,
+                        }}
+                      >
+                        {bName} • {t.column} •{" "}
+                        {PRIORITY_EMOJI[t.priority]}{" "}
+                        {t.priority}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          marginTop: 10,
+                        }}
+                      >
                         <button
-                          style={softBtn("#7FB7D9")}
+                          style={softBtn(
+                            theme.accent
+                          )}
                           className="btnlift"
-                          onClick={() => {
-                            setCurrentBucketId(t.bucketId);
-                            setView("board");
-                            setViewingTaskId(t.id);
-                          }}
+                          onClick={() =>
+                            openEditTask(t)
+                          }
                         >
-                          Open on Board
-                        </button>
-                        <button
-                          style={softBtn(theme.accent)}
-                          className="btnlift"
-                          onClick={() => openEditTask(t)}
-                        >
-                          Edit
+                          ✏️ Edit
                         </button>
                       </div>
                     </div>
@@ -1048,11 +1809,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Task Modal */}
+      {/* =====================
+          TASK MODAL
+          ===================== */}
       {showTaskModal && (
         <div
           onClick={() => setShowTaskModal(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1000,
+            padding: 14,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1063,120 +1834,438 @@ export default function App() {
               border: theme.softBorder,
               borderRadius: 28,
               padding: 16,
-              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
+              boxShadow:
+                "0 30px 80px rgba(0,0,0,0.18)",
               maxHeight: "90vh",
-              overflowY: "auto"
+              overflowY: "auto",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>
-              {editingTaskId ? "✏️ Edit Task" : "➕ New Task"}
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 950,
+                marginBottom: 10,
+              }}
+            >
+              {editingTaskId
+                ? "✏️ Edit Task"
+                : "➕ New Task"}
             </div>
 
-            <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Title *</label>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                color: theme.subtext,
+              }}
+            >
+              Title *
+            </label>
             <input
               value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="What are we doing, bestie?"
-              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 800 }}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  title: e.target.value,
+                }))
+              }
+              placeholder="What needs to be done?"
+              style={{
+                width: "100%",
+                marginTop: 6,
+                marginBottom: 10,
+                padding: "12px 14px",
+                borderRadius: 18,
+                border: theme.softBorder,
+                background: theme.inputBg,
+                fontWeight: 800,
+              }}
             />
 
-            <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Assigned To</label>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                color: theme.subtext,
+              }}
+            >
+              Assigned To
+            </label>
             <input
               value={form.assignee}
-              onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
-              placeholder="Who’s owning this?"
-              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 800 }}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  assignee: e.target.value,
+                }))
+              }
+              placeholder="Who's owning this?"
+              style={{
+                width: "100%",
+                marginTop: 6,
+                marginBottom: 10,
+                padding: "12px 14px",
+                borderRadius: 18,
+                border: theme.softBorder,
+                background: theme.inputBg,
+                fontWeight: 800,
+              }}
             />
 
-            <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Notes</label>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                color: theme.subtext,
+              }}
+            >
+              Notes
+            </label>
             <textarea
               value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  notes: e.target.value,
+                }))
+              }
               rows={3}
-              placeholder="Add cute notes + details…"
-              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 750, resize: "vertical" }}
+              placeholder="Add details…"
+              style={{
+                width: "100%",
+                marginTop: 6,
+                marginBottom: 10,
+                padding: "12px 14px",
+                borderRadius: 18,
+                border: theme.softBorder,
+                background: theme.inputBg,
+                fontWeight: 750,
+                resize: "vertical",
+              }}
             />
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginBottom: 10,
+              }}
+            >
               <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Priority</label>
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: theme.subtext,
+                  }}
+                >
+                  Priority
+                </label>
                 <select
                   value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 900 }}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      priority: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: "12px 14px",
+                    borderRadius: 18,
+                    border: theme.softBorder,
+                    background: theme.inputBg,
+                    fontWeight: 900,
+                  }}
                 >
-                  <option value="Urgent">💗 Urgent</option>
-                  <option value="High">❤️ High</option>
-                  <option value="Medium">💜 Medium</option>
+                  <option value="Urgent">
+                    💗 Urgent
+                  </option>
+                  <option value="High">
+                    ❤️ High
+                  </option>
+                  <option value="Medium">
+                    💜 Medium
+                  </option>
                   <option value="Low">💚 Low</option>
                 </select>
               </div>
 
               <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Column</label>
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: theme.subtext,
+                  }}
+                >
+                  Status
+                </label>
                 <select
                   value={form.column}
-                  onChange={(e) => setForm((f) => ({ ...f, column: e.target.value }))}
-                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 900 }}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      column: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: "12px 14px",
+                    borderRadius: 18,
+                    border: theme.softBorder,
+                    background: theme.inputBg,
+                    fontWeight: 900,
+                  }}
                 >
-                  {COLUMNS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {COLUMNS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginBottom: 10,
+              }}
+            >
               <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Start Date</label>
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: theme.subtext,
+                  }}
+                >
+                  Start Date
+                </label>
                 <input
                   type="date"
                   value={form.startDate}
-                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      startDate: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: "12px 14px",
+                    borderRadius: 18,
+                    border: theme.softBorder,
+                    background: theme.inputBg,
+                    fontWeight: 850,
+                  }}
                 />
               </div>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Due Date</label>
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: theme.subtext,
+                  }}
+                >
+                  Due Date
+                </label>
                 <input
                   type="date"
                   value={form.dueDate}
-                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      dueDate: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: "12px 14px",
+                    borderRadius: 18,
+                    border: theme.softBorder,
+                    background: theme.inputBg,
+                    fontWeight: 850,
+                  }}
                 />
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                marginBottom: 10,
+                flexWrap: "wrap",
+              }}
+            >
               <button
-                onClick={() => setForm((f) => ({ ...f, pinned: !f.pinned }))}
-                style={softBtn(form.pinned ? theme.accent2 : theme.accent)}
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    pinned: !f.pinned,
+                  }))
+                }
+                style={softBtn(
+                  form.pinned
+                    ? theme.accent2
+                    : theme.accent
+                )}
                 className="btnlift"
               >
-                {form.pinned ? "📌 Pinned" : "📌 Pin"}
+                {form.pinned
+                  ? "📌 Pinned"
+                  : "📌 Pin"}
               </button>
 
               <button
                 onClick={() => {
-                  const txt = prompt("Checklist item:");
+                  const txt = prompt(
+                    "Checklist item:"
+                  );
                   if (!txt) return;
-                  setForm((f) => ({ ...f, checklist: [...(f.checklist || []), { text: txt, done: false }] }));
+                  setForm((f) => ({
+                    ...f,
+                    checklist: [
+                      ...(f.checklist || []),
+                      { text: txt, done: false },
+                    ],
+                  }));
                 }}
                 style={softBtn("#7FB7D9")}
                 className="btnlift"
               >
-                + Checklist item
+                + Checklist
               </button>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            {/* Labels */}
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginBottom: 14,
+              }}
+            >
+              {LABELS.map((l) => {
+                const sel = form.labels.includes(
+                  l.name
+                );
+                return (
+                  <button
+                    key={l.name}
+                    onClick={() => {
+                      setForm((f) => ({
+                        ...f,
+                        labels: sel
+                          ? f.labels.filter(
+                              (x) => x !== l.name
+                            )
+                          : [...f.labels, l.name],
+                      }));
+                    }}
+                    style={{
+                      border: "none",
+                      borderRadius: 999,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                      fontWeight: 900,
+                      fontSize: 12,
+                      background: sel
+                        ? l.color
+                        : "rgba(255,255,255,0.65)",
+                      color: sel ? "#fff" : theme.text,
+                    }}
+                  >
+                    {l.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Show checklist preview */}
+            {form.checklist?.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {form.checklist.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span>{c.done ? "✅" : "⬜"}</span>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                      }}
+                    >
+                      {c.text}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          checklist:
+                            f.checklist.filter(
+                              (_, idx) => idx !== i
+                            ),
+                        }))
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "#D36C7D",
+                        fontWeight: 900,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+              }}
+            >
               <button
                 onClick={() => setShowTaskModal(false)}
-                style={{ ...pillBtn(false), padding: "12px 16px" }}
+                style={{
+                  ...pillBtn(false),
+                  padding: "12px 16px",
+                }}
                 className="btnlift"
               >
                 Cancel
               </button>
-              <button onClick={upsertTask} style={softBtn(theme.accent)} className="btnlift">
-                {editingTaskId ? "Save Changes" : "Create Task"}
+              <button
+                onClick={upsertTask}
+                style={softBtn(theme.accent)}
+                className="btnlift"
+              >
+                {editingTaskId
+                  ? "Save Changes"
+                  : "Create Task"}
               </button>
             </div>
           </div>
@@ -1187,7 +2276,15 @@ export default function App() {
       {showBucketModal && (
         <div
           onClick={() => setShowBucketModal(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1000,
+            padding: 14,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1198,22 +2295,66 @@ export default function App() {
               border: theme.softBorder,
               borderRadius: 28,
               padding: 16,
-              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
+              boxShadow:
+                "0 30px 80px rgba(0,0,0,0.18)",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>
-              {editingBucketId ? "✏️ Rename Bucket" : "📂 New Bucket"}
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 950,
+                marginBottom: 10,
+              }}
+            >
+              {editingBucketId
+                ? "✏️ Rename Project"
+                : "📂 New Project"}
             </div>
             <input
               value={bucketFormName}
-              onChange={(e) => setBucketFormName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && saveBucket()}
-              placeholder="Bucket name"
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
+              onChange={(e) =>
+                setBucketFormName(e.target.value)
+              }
+              onKeyDown={(e) =>
+                e.key === "Enter" && saveBucket()
+              }
+              placeholder="Project name"
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 18,
+                border: theme.softBorder,
+                background: theme.inputBg,
+                fontWeight: 850,
+              }}
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
-              <button onClick={() => setShowBucketModal(false)} style={{ ...pillBtn(false), padding: "12px 16px" }} className="btnlift">Cancel</button>
-              <button onClick={saveBucket} style={softBtn(theme.accent)} className="btnlift">{editingBucketId ? "Save" : "Create"}</button>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <button
+                onClick={() =>
+                  setShowBucketModal(false)
+                }
+                style={{
+                  ...pillBtn(false),
+                  padding: "12px 16px",
+                }}
+                className="btnlift"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveBucket}
+                style={softBtn(theme.accent)}
+                className="btnlift"
+              >
+                {editingBucketId ? "Save" : "Create"}
+              </button>
             </div>
           </div>
         </div>
@@ -1223,7 +2364,15 @@ export default function App() {
       {showSyncModal && (
         <div
           onClick={() => setShowSyncModal(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1000,
+            padding: 14,
+          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1234,15 +2383,40 @@ export default function App() {
               border: theme.softBorder,
               borderRadius: 28,
               padding: 16,
-              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
+              boxShadow:
+                "0 30px 80px rgba(0,0,0,0.18)",
               maxHeight: "90vh",
-              overflowY: "auto"
+              overflowY: "auto",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>🔄 Sync Between Devices</div>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 950,
+                marginBottom: 10,
+              }}
+            >
+              🔄 Sync Between Devices
+            </div>
 
-            <div style={{ background: "rgba(247, 169, 196, 0.12)", border: theme.softBorder, borderRadius: 22, padding: 12, marginBottom: 10 }}>
-              <div style={{ fontWeight: 950, marginBottom: 6 }}>📤 Export</div>
+            <div
+              style={{
+                background:
+                  "rgba(247, 169, 196, 0.12)",
+                border: theme.softBorder,
+                borderRadius: 22,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 950,
+                  marginBottom: 6,
+                }}
+              >
+                📤 Export
+              </div>
               <textarea
                 readOnly
                 value={syncExportCode}
@@ -1253,21 +2427,53 @@ export default function App() {
                   padding: 12,
                   borderRadius: 18,
                   border: theme.softBorder,
-                  background: "rgba(255,255,255,0.85)",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 11
+                  background:
+                    "rgba(255,255,255,0.85)",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontSize: 11,
                 }}
               />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button onClick={copySyncCode} style={softBtn(theme.accent2)} className="btnlift">📋 Copy Code</button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 10,
+                }}
+              >
+                <button
+                  onClick={copySyncCode}
+                  style={softBtn(theme.accent2)}
+                  className="btnlift"
+                >
+                  📋 Copy Code
+                </button>
               </div>
             </div>
 
-            <div style={{ background: "rgba(167, 220, 195, 0.12)", border: theme.softBorder, borderRadius: 22, padding: 12, marginBottom: 10 }}>
-              <div style={{ fontWeight: 950, marginBottom: 6 }}>📥 Import</div>
+            <div
+              style={{
+                background:
+                  "rgba(167, 220, 195, 0.12)",
+                border: theme.softBorder,
+                borderRadius: 22,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 950,
+                  marginBottom: 6,
+                }}
+              >
+                📥 Import
+              </div>
               <textarea
                 value={syncImportCode}
-                onChange={(e) => setSyncImportCode(e.target.value)}
+                onChange={(e) =>
+                  setSyncImportCode(e.target.value)
+                }
                 placeholder="Paste code here…"
                 style={{
                   width: "100%",
@@ -1275,24 +2481,64 @@ export default function App() {
                   padding: 12,
                   borderRadius: 18,
                   border: theme.softBorder,
-                  background: "rgba(255,255,255,0.85)",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 11
+                  background:
+                    "rgba(255,255,255,0.85)",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontSize: 11,
                 }}
               />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button onClick={importSync} style={softBtn(theme.accent3)} className="btnlift">📥 Import Tasks</button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 10,
+                }}
+              >
+                <button
+                  onClick={importSync}
+                  style={softBtn(theme.accent3)}
+                  className="btnlift"
+                >
+                  📥 Import
+                </button>
               </div>
             </div>
 
             {syncMessage && (
-              <div style={{ padding: 12, borderRadius: 18, background: "rgba(179,157,219,0.18)", border: theme.softBorder, fontWeight: 900 }}>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 18,
+                  background:
+                    "rgba(179,157,219,0.18)",
+                  border: theme.softBorder,
+                  fontWeight: 900,
+                }}
+              >
                 {syncMessage}
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button onClick={() => setShowSyncModal(false)} style={{ ...pillBtn(false), padding: "12px 16px" }} className="btnlift">Close</button>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: 12,
+              }}
+            >
+              <button
+                onClick={() =>
+                  setShowSyncModal(false)
+                }
+                style={{
+                  ...pillBtn(false),
+                  padding: "12px 16px",
+                }}
+                className="btnlift"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
