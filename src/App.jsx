@@ -241,10 +241,10 @@ var uid = function () {
                   <span style={{ opacity: 0.7, fontSize: 12 }}>({count})</span>
                 </button>
                 {active && (
-                  <React.Fragment>
+                  <span style={{display:"contents"}}>
                     <button onClick={function () { openBucketEditor(b); }} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 13 }} title="Rename">✏️</button>
                     <button onClick={function () { deleteBucket(b.id); }} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#D36C7D" }} title="Delete">✕</button>
-                  </React.Fragment>
+                  </span>
                 )}
               </div>
             );
