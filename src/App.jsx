@@ -5,15 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
  *  --------------------------*/
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const yyyyMmDd = (d) => {
-  const dt = new Date(d);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const day = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
-
-const safeJsonParse = (s, fallback) => {
+const safeParse = (s, fallback) => {
   try {
     const v = JSON.parse(s);
     return v ?? fallback;
@@ -23,7 +15,6 @@ const safeJsonParse = (s, fallback) => {
 };
 
 const encodeSync = (obj) => {
-  // Note: base64 can get long if you have tons of tasks—this is normal.
   const json = JSON.stringify(obj);
   return btoa(unescape(encodeURIComponent(json)));
 };
@@ -33,16 +24,22 @@ const decodeSync = (code) => {
   return JSON.parse(json);
 };
 
+const yyyyMmDd = (d) => {
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
 const addMonths = (date, delta) => new Date(date.getFullYear(), date.getMonth() + delta, 1);
 
 const getCalendarGrid = (monthDate) => {
-  // Returns 42 cells (6 weeks x 7 days) for a month grid
+  // 6 weeks x 7 days
   const first = startOfMonth(monthDate);
-  const last = endOfMonth(monthDate);
-
-  const startDayIndex = first.getDay(); // 0 Sun ... 6 Sat
+  const startDayIndex = first.getDay(); // 0=Sun..6=Sat
   const gridStart = new Date(first);
   gridStart.setDate(first.getDate() - startDayIndex);
 
@@ -56,81 +53,70 @@ const getCalendarGrid = (monthDate) => {
       isToday: yyyyMmDd(d) === yyyyMmDd(new Date()),
     });
   }
-  return { first, last, cells };
+  return { cells };
 };
 
 /** ---------------------------
- *  Defaults / Config
+ *  Defaults
  *  --------------------------*/
 const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
 
 const DEFAULT_BUCKETS = [
   { id: "saddleside", name: "Saddleside" },
-  { id: "legacyfields", name: "Legacy Fields" },
+  { id: "legacy", name: "Legacy Fields" },
   { id: "lonestar", name: "Lonestar" },
-  { id: "alpharanch", name: "Alpha Ranch" },
-  { id: "willowstone", name: "Willowstone" },
+  { id: "alpha", name: "Alpha Ranch" },
+  { id: "willow", name: "Willowstone" },
   { id: "other", name: "Other" },
 ];
 
+// Girly pastel priorities (task color system)
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
-
-const PRIORITY_COLORS_PASTEL = {
-  Urgent: "#F2A7A7", // pastel red
-  High: "#F4C19A",   // pastel orange
-  Medium: "#F4E49A", // pastel yellow
-  Low: "#A8DDB5",    // pastel green
+const PRIORITY_EMOJI = { Urgent: "💗", High: "❤️", Medium: "💜", Low: "💚" };
+const PRIORITY_COLORS = {
+  Urgent: "#F7C2D4", // pastel pink
+  High: "#F3B3B3",   // pastel red
+  Medium: "#DCC8F7", // pastel purple
+  Low: "#C8F0D7",    // pastel green
 };
 
-const PRIORITY_EMOJI = {
-  Urgent: "🔴",
-  High: "🟠",
-  Medium: "🟡",
-  Low: "🟢",
-};
-
+// Cute labels (optional)
 const LABELS = [
-  { name: "Bug", color: "#F28C8C" },
-  { name: "Feature", color: "#8BBCEB" },
-  { name: "Design", color: "#C7A6E8" },
-  { name: "Research", color: "#9ED6B8" },
-  { name: "Meeting", color: "#F3C07B" },
-  { name: "Personal", color: "#88D6D8" },
+  { name: "Important", color: "#F3B3B3" },
+  { name: "Call", color: "#F7C2D4" },
+  { name: "Docs", color: "#DCC8F7" },
+  { name: "Follow-up", color: "#C8F0D7" },
+  { name: "Meeting", color: "#F6D7A9" },
+  { name: "Personal", color: "#BEE9F7" },
 ];
 
-const BUCKET_COLORS_PASTEL = {
-  saddleside: "#9EC5E8",
-  legacyfields: "#A6D9B6",
-  lonestar: "#F1C3A1",
-  alpharanch: "#C8B2E6",
-  willowstone: "#9AD9DB",
-  other: "#B7C6D6",
+// Bucket dot colors (soft, Pinterest-like)
+const BUCKET_DOTS = {
+  saddleside: "#BFD7F2",
+  legacy: "#BFEAD2",
+  lonestar: "#F6D7C3",
+  alpha: "#DCC8F7",
+  willow: "#BEE9F7",
+  other: "#D6DCE6",
 };
 
 /** ---------------------------
- *  Main App
+ *  App
  *  --------------------------*/
 export default function App() {
   // Views: "board" | "month"
-  const [view, setView] = useState(() => localStorage.getItem("planner-view") || "board");
+  const [view, setView] = useState(() => localStorage.getItem("p_view") || "board");
 
-  // Theme
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("planner-dark") === "true");
-
-  // Buckets + selection
+  // Data
   const [buckets, setBuckets] = useState(() =>
-    safeJsonParse(localStorage.getItem("planner-buckets"), DEFAULT_BUCKETS)
+    safeParse(localStorage.getItem("p_buckets"), DEFAULT_BUCKETS)
   );
   const [currentBucketId, setCurrentBucketId] = useState(() =>
-    localStorage.getItem("planner-current-bucket") || DEFAULT_BUCKETS[0].id
+    localStorage.getItem("p_currentBucket") || DEFAULT_BUCKETS[0].id
   );
+  const [tasks, setTasks] = useState(() => safeParse(localStorage.getItem("p_tasks"), []));
 
-  // Tasks
-  const [tasks, setTasks] = useState(() =>
-    safeJsonParse(localStorage.getItem("planner-tasks"), [])
-  );
-
-  // UI state
+  // UI
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPriority, setFilterPriority] = useState("All");
   const [sortBy, setSortBy] = useState("none"); // none|priority|dueDate|name
@@ -170,30 +156,15 @@ export default function App() {
   });
 
   /** ---------------------------
-   *  Persist to localStorage
+   *  Persist
    *  --------------------------*/
-  useEffect(() => {
-    localStorage.setItem("planner-view", view);
-  }, [view]);
-
-  useEffect(() => {
-    localStorage.setItem("planner-dark", String(darkMode));
-  }, [darkMode]);
-
-  useEffect(() => {
-    localStorage.setItem("planner-buckets", JSON.stringify(buckets));
-  }, [buckets]);
-
-  useEffect(() => {
-    localStorage.setItem("planner-current-bucket", currentBucketId);
-  }, [currentBucketId]);
-
-  useEffect(() => {
-    localStorage.setItem("planner-tasks", JSON.stringify(tasks));
-  }, [tasks]);
+  useEffect(() => localStorage.setItem("p_view", view), [view]);
+  useEffect(() => localStorage.setItem("p_buckets", JSON.stringify(buckets)), [buckets]);
+  useEffect(() => localStorage.setItem("p_currentBucket", currentBucketId), [currentBucketId]);
+  useEffect(() => localStorage.setItem("p_tasks", JSON.stringify(tasks)), [tasks]);
 
   /** ---------------------------
-   *  Derived data
+   *  Derived
    *  --------------------------*/
   const currentBucket = useMemo(
     () => buckets.find((b) => b.id === currentBucketId) || buckets[0],
@@ -214,17 +185,17 @@ export default function App() {
     return due < today;
   };
 
-  const isDueToday = (t) => t.dueDate && yyyyMmDd(new Date(t.dueDate)) === yyyyMmDd(new Date()) && t.column !== "Done";
+  const isDueToday = (t) => t.dueDate && yyyyMmDd(t.dueDate) === yyyyMmDd(new Date()) && t.column !== "Done";
 
   const isDueSoon = (t) => {
     if (!t.dueDate || t.column === "Done") return false;
-    if (isDueToday(t) || isOverdue(t)) return false;
+    if (isOverdue(t) || isDueToday(t)) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const due = new Date(t.dueDate);
     due.setHours(0, 0, 0, 0);
-    const diffDays = (due - today) / (1000 * 60 * 60 * 24);
-    return diffDays > 0 && diffDays <= 3;
+    const diff = (due - today) / (1000 * 60 * 60 * 24);
+    return diff > 0 && diff <= 3;
   };
 
   const getProgress = (t) => {
@@ -243,12 +214,11 @@ export default function App() {
         (t.assignee || "").toLowerCase().includes(q);
 
       const matchesPriority = filterPriority === "All" || t.priority === filterPriority;
-
       return matchesSearch && matchesPriority;
     });
   }, [bucketTasks, searchQuery, filterPriority]);
 
-  const sortedTasks = (list) => {
+  const sortTasks = (list) => {
     const pinned = list.filter((t) => t.pinned);
     const rest = list.filter((t) => !t.pinned);
 
@@ -263,24 +233,21 @@ export default function App() {
     } else if (sortBy === "name") {
       rest.sort((a, b) => a.title.localeCompare(b.title));
     }
-
     return [...pinned, ...rest];
   };
 
   /** ---------------------------
-   *  Sync: Export / Import
+   *  Sync
    *  --------------------------*/
   const openSync = () => {
     const payload = {
       v: 1,
       exportedAt: new Date().toISOString(),
-      darkMode,
       buckets,
       currentBucketId,
       tasks,
     };
-    const code = encodeSync(payload);
-    setSyncExportCode(code);
+    setSyncExportCode(encodeSync(payload));
     setSyncImportCode("");
     setSyncMessage("");
     setShowSyncModal(true);
@@ -289,13 +256,13 @@ export default function App() {
   const copySyncCode = async () => {
     try {
       await navigator.clipboard.writeText(syncExportCode);
-      setSyncMessage("✅ Copied! Paste it on your other device to import.");
+      setSyncMessage("✅ Copied! Paste it on your phone to import.");
     } catch {
-      setSyncMessage("⚠️ Copy didn’t work. Tap the code, Select All, then Copy.");
+      setSyncMessage("⚠️ Tap the code → Select All → Copy (manual).");
     }
   };
 
-  const importSyncCode = () => {
+  const importSync = () => {
     if (!syncImportCode.trim()) {
       setSyncMessage("⚠️ Paste a code first.");
       return;
@@ -304,26 +271,25 @@ export default function App() {
       const data = decodeSync(syncImportCode);
       if (Array.isArray(data.tasks)) setTasks(data.tasks);
       if (Array.isArray(data.buckets)) setBuckets(data.buckets);
-      if (typeof data.darkMode === "boolean") setDarkMode(data.darkMode);
       if (data.currentBucketId) setCurrentBucketId(data.currentBucketId);
 
-      setSyncMessage("✅ Imported! Your planner is updated on this device.");
+      setSyncMessage("✅ Imported! This device is updated.");
       setTimeout(() => {
         setShowSyncModal(false);
         setSyncMessage("");
       }, 1200);
     } catch {
-      setSyncMessage("❌ Invalid code. Make sure you copied the entire code.");
+      setSyncMessage("❌ Invalid code. Make sure you copied the FULL code.");
     }
   };
 
   /** ---------------------------
-   *  Buckets CRUD
+   *  Bucket CRUD
    *  --------------------------*/
-  const openBucketEditor = (bucket) => {
-    if (bucket) {
-      setEditingBucketId(bucket.id);
-      setBucketFormName(bucket.name);
+  const openBucketEditor = (b) => {
+    if (b) {
+      setEditingBucketId(b.id);
+      setBucketFormName(b.name);
     } else {
       setEditingBucketId(null);
       setBucketFormName("");
@@ -399,23 +365,13 @@ export default function App() {
 
     if (editingTaskId) {
       setTasks((prev) =>
-        prev.map((t) =>
-          t.id === editingTaskId
-            ? {
-                ...t,
-                ...form,
-              }
-            : t
-        )
+        prev.map((t) => (t.id === editingTaskId ? { ...t, ...form } : t))
       );
     } else {
-      const newTask = {
-        id: uid(),
-        createdAt: new Date().toISOString(),
-        bucketId: currentBucketId,
-        ...form,
-      };
-      setTasks((prev) => [...prev, newTask]);
+      setTasks((prev) => [
+        ...prev,
+        { id: uid(), createdAt: new Date().toISOString(), bucketId: currentBucketId, ...form },
+      ]);
     }
     setShowTaskModal(false);
     setEditingTaskId(null);
@@ -445,13 +401,13 @@ export default function App() {
     );
   };
 
-  const addComment = (taskId, text) => {
-    const msg = text.trim();
+  const addComment = (taskId) => {
+    const msg = prompt("Add comment:");
     if (!msg) return;
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskId) return t;
-        const comments = [...(t.comments || []), { text: msg, date: new Date().toLocaleString() }];
+        const comments = [...(t.comments || []), { text: msg.trim(), date: new Date().toLocaleString() }];
         return { ...t, comments };
       })
     );
@@ -468,7 +424,7 @@ export default function App() {
   };
 
   /** ---------------------------
-   *  Month Calendar data
+   *  Month Calendar
    *  --------------------------*/
   const { cells } = useMemo(() => getCalendarGrid(monthCursor), [monthCursor]);
 
@@ -480,7 +436,6 @@ export default function App() {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(t);
     }
-    // sort each day’s tasks by priority then due date
     for (const [k, list] of map.entries()) {
       list.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2));
       map.set(k, list);
@@ -488,48 +443,29 @@ export default function App() {
     return map;
   }, [tasks]);
 
-  const selectedDayTasks = useMemo(() => {
-    const list = tasksByDueDate.get(selectedDay) || [];
-    return list;
-  }, [tasksByDueDate, selectedDay]);
+  const selectedDayTasks = useMemo(() => tasksByDueDate.get(selectedDay) || [], [tasksByDueDate, selectedDay]);
 
   /** ---------------------------
-   *  THEME (Pastel Blue Light)
+   *  Pinterest Aesthetic Theme
    *  --------------------------*/
-  const theme = useMemo(() => {
-    if (darkMode) {
-      return {
-        bg: "#141C2A",
-        headerBg: "linear-gradient(135deg, #1E3458, #162844)",
-        toolbarBg: "#1A2740",
-        columnBg: "#1A2944",
-        cardBg: "#17253E",
-        text: "#E7EEF8",
-        subtext: "#A7B5C9",
-        border: "#2A3A58",
-        inputBg: "#13213A",
-        inputBorder: "#2A3A58",
-        accent: "#7DAED4",
-      };
-    }
-    // Pastel blue focus:
-    return {
-      bg: "#E8F2FF", // light pastel blue overall
-      headerBg: "linear-gradient(135deg, #B7D8F6, #9CC7EB)", // pastel blue heading
-      toolbarBg: "#F1F7FF",
-      columnBg: "#DDEBFA",
-      cardBg: "#FFFFFF",
-      text: "#274058",
-      subtext: "#5F7F9D",
-      border: "#C5DAF2",
-      inputBg: "#FFFFFF",
-      inputBorder: "#B8D0EA",
-      accent: "#7CAFD6",
-    };
-  }, [darkMode]);
+  const theme = {
+    bg: "linear-gradient(180deg, #FBF7FF 0%, #F7FBFF 40%, #FDF7FB 100%)",
+    header: "linear-gradient(135deg, #DCE7F6 0%, #EADCF6 50%, #F6DCEB 100%)",
+    text: "#2E3A4A",
+    subtext: "#6B7A90",
+    card: "#FFFFFF",
+    cardShadow: "0 12px 30px rgba(30, 60, 90, 0.08)",
+    cardHoverShadow: "0 18px 40px rgba(30, 60, 90, 0.12)",
+    softBorder: "1px solid rgba(200, 214, 235, 0.55)",
+    pill: "rgba(255,255,255,0.65)",
+    accent: "#B39DDB", // lilac accent
+    accent2: "#F7A9C4", // blush
+    accent3: "#A7DCC3", // mint
+    inputBg: "rgba(255,255,255,0.85)",
+  };
 
   /** ---------------------------
-   *  Stats (current bucket)
+   *  Stats
    *  --------------------------*/
   const stats = useMemo(() => {
     const total = bucketTasks.length;
@@ -539,155 +475,111 @@ export default function App() {
     return { total, done, overdue, dueSoon };
   }, [bucketTasks]);
 
-  /** ---------------------------
-   *  UI Components
-   *  --------------------------*/
-  const Pill = ({ color, children }) => (
-    <span
-      style={{
-        background: color,
-        color: "#fff",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
-      {children}
-    </span>
-  );
+  const pillBtn = (active = false) => ({
+    border: "none",
+    borderRadius: 999,
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 800,
+    fontSize: 13,
+    color: theme.text,
+    background: active ? "rgba(255,255,255,0.92)" : theme.pill,
+    boxShadow: active ? "0 10px 24px rgba(0,0,0,0.06)" : "none",
+    transition: "transform 140ms ease, box-shadow 140ms ease",
+  });
+
+  const softBtn = (bg) => ({
+    border: "none",
+    borderRadius: 14,
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 900,
+    color: "#fff",
+    background: bg,
+    boxShadow: "0 14px 28px rgba(0,0,0,0.10)",
+    transition: "transform 140ms ease, box-shadow 140ms ease",
+  });
 
   /** ---------------------------
    *  Render
    *  --------------------------*/
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "Segoe UI, system-ui, -apple-system, sans-serif" }}>
+      {/* Little CSS for hover lift */}
+      <style>{`
+        .lift:hover { transform: translateY(-2px); box-shadow: ${theme.cardHoverShadow}; }
+        .btnlift:hover { transform: translateY(-1px); box-shadow: 0 18px 34px rgba(0,0,0,0.12); }
+        ::selection { background: rgba(247, 169, 196, 0.45); }
+      `}</style>
+
       {/* Header */}
-      <header style={{ background: theme.headerBg, color: "white", padding: "14px 18px", boxShadow: "0 6px 24px rgba(0,0,0,0.12)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <h1 style={{ margin: 0, fontSize: 22, letterSpacing: 0.2 }}>💙 My Planner</h1>
-            <span style={{ opacity: 0.9, fontSize: 12 }}>
-              📊 {stats.total} | ✅ {stats.done}
-              {stats.overdue > 0 ? ` | ⚠️ ${stats.overdue}` : ""}
-              {stats.dueSoon > 0 ? ` | 🔔 ${stats.dueSoon}` : ""}
-            </span>
+      <header style={{ background: theme.header, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.10)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 14,
+              background: "rgba(255,255,255,0.85)",
+              display: "grid", placeItems: "center",
+              boxShadow: "0 12px 26px rgba(0,0,0,0.10)",
+              fontSize: 20
+            }}>🧁</div>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>My Planner</div>
+              <div style={{ fontSize: 12, color: theme.subtext, fontWeight: 700 }}>
+                📊 {stats.total} • ✅ {stats.done}
+                {stats.overdue ? ` • ⚠️ ${stats.overdue}` : ""}
+                {stats.dueSoon ? ` • 🔔 ${stats.dueSoon}` : ""}
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={() => setView("board")}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 10px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: view === "board" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.18)",
-                color: "white",
-              }}
-            >
-              📋 Board
-            </button>
-
-            <button
-              onClick={() => setView("month")}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 10px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: view === "month" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.18)",
-                color: "white",
-              }}
-            >
-              🗓️ Month
-            </button>
-
-            <button
-              onClick={openSync}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 10px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: "rgba(255,255,255,0.18)",
-                color: "white",
-              }}
-            >
-              🔄 Sync
-            </button>
-
-            <button
-              onClick={() => setDarkMode((v) => !v)}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 10px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 700,
-                background: "rgba(255,255,255,0.18)",
-                color: "white",
-              }}
-            >
-              {darkMode ? "☀️ Light" : "🌙 Dark"}
-            </button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button style={pillBtn(view === "board")} onClick={() => setView("board")} className="btnlift">📋 Board</button>
+            <button style={pillBtn(view === "month")} onClick={() => setView("month")} className="btnlift">🗓️ Month</button>
+            <button style={pillBtn(false)} onClick={openSync} className="btnlift">🔄 Sync</button>
+            <button style={pillBtn(false)} onClick={() => openBucketEditor(null)} className="btnlift">+ Bucket</button>
           </div>
         </div>
 
-        {/* Bucket Tabs */}
-        <div style={{ marginTop: 12, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        {/* Bucket tabs */}
+        <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
           {buckets.map((b) => {
             const active = b.id === currentBucketId;
             const count = tasks.filter((t) => t.bucketId === b.id).length;
             return (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button
-                  onClick={() => setCurrentBucketId(b.id)}
                   style={{
-                    border: "none",
-                    borderRadius: "10px 10px 0 0",
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: active ? 800 : 600,
-                    background: active ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.15)",
-                    color: "white",
+                    ...pillBtn(active),
+                    padding: "10px 12px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8
                   }}
+                  onClick={() => {
+                    setCurrentBucketId(b.id);
+                    setViewingTaskId(null);
+                  }}
+                  className="btnlift"
                 >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 999,
-                        background: BUCKET_COLORS_PASTEL[b.id] || theme.accent,
-                        display: "inline-block",
-                      }}
-                    />
-                    {b.name} <span style={{ opacity: 0.75, fontSize: 11 }}>({count})</span>
-                  </span>
+                  <span style={{ width: 10, height: 10, borderRadius: 999, background: BUCKET_DOTS[b.id] || theme.accent }} />
+                  {b.name}
+                  <span style={{ opacity: 0.7, fontSize: 12 }}>({count})</span>
                 </button>
 
                 {active && (
                   <>
                     <button
                       onClick={() => openBucketEditor(b)}
-                      style={{ border: "none", background: "transparent", color: "white", cursor: "pointer", fontSize: 12 }}
-                      title="Rename bucket"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 900, color: theme.subtext }}
+                      title="Rename"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => deleteBucket(b.id)}
-                      style={{ border: "none", background: "transparent", color: "#FFE0E0", cursor: "pointer", fontSize: 12 }}
-                      title="Delete bucket"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 900, color: "#D36C7D" }}
+                      title="Delete"
                     >
                       ✕
                     </button>
@@ -696,138 +588,103 @@ export default function App() {
               </div>
             );
           })}
-
-          <button
-            onClick={() => openBucketEditor(null)}
-            style={{
-              border: "1px dashed rgba(255,255,255,0.65)",
-              background: "transparent",
-              color: "white",
-              borderRadius: 10,
-              padding: "8px 12px",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            + Bucket
-          </button>
         </div>
       </header>
 
       {/* Toolbar */}
-      <div style={{ background: theme.toolbarBg, borderBottom: `1px solid ${theme.border}`, padding: 14 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`🔍 Search in ${currentBucket?.name || "bucket"}...`}
-            style={{
-              flex: 1,
-              minWidth: 180,
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: `1px solid ${theme.inputBorder}`,
-              background: theme.inputBg,
-              color: theme.text,
-              outline: "none",
-              fontSize: 14,
-            }}
-          />
+      <div style={{ padding: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={`Search in ${currentBucket?.name || "bucket"}...`}
+          style={{
+            flex: 1, minWidth: 220,
+            padding: "12px 14px",
+            borderRadius: 18,
+            border: theme.softBorder,
+            background: theme.inputBg,
+            outline: "none",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            fontWeight: 700,
+            color: theme.text
+          }}
+        />
 
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: `1px solid ${theme.inputBorder}`,
-              background: theme.inputBg,
-              color: theme.text,
-              fontSize: 14,
-            }}
-          >
-            <option value="All">All Priorities</option>
-            <option value="Urgent">🔴 Urgent</option>
-            <option value="High">🟠 High</option>
-            <option value="Medium">🟡 Medium</option>
-            <option value="Low">🟢 Low</option>
-          </select>
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value)}
+          style={{
+            padding: "12px 14px",
+            borderRadius: 18,
+            border: theme.softBorder,
+            background: theme.inputBg,
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            fontWeight: 800,
+            color: theme.text
+          }}
+        >
+          <option value="All">All priorities</option>
+          <option value="Urgent">💗 Urgent</option>
+          <option value="High">❤️ High</option>
+          <option value="Medium">💜 Medium</option>
+          <option value="Low">💚 Low</option>
+        </select>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: `1px solid ${theme.inputBorder}`,
-              background: theme.inputBg,
-              color: theme.text,
-              fontSize: 14,
-            }}
-          >
-            <option value="none">Sort: Default</option>
-            <option value="priority">Sort: Priority</option>
-            <option value="dueDate">Sort: Due Date</option>
-            <option value="name">Sort: Name</option>
-          </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          style={{
+            padding: "12px 14px",
+            borderRadius: 18,
+            border: theme.softBorder,
+            background: theme.inputBg,
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            fontWeight: 800,
+            color: theme.text
+          }}
+        >
+          <option value="none">Sort: default</option>
+          <option value="priority">Sort: priority</option>
+          <option value="dueDate">Sort: due date</option>
+          <option value="name">Sort: name</option>
+        </select>
 
-          <button
-            onClick={() => openNewTask("To Do")}
-            style={{
-              padding: "10px 14px",
-              border: "none",
-              borderRadius: 12,
-              background: theme.accent,
-              color: "white",
-              fontWeight: 800,
-              cursor: "pointer",
-              fontSize: 14,
-              boxShadow: "0 10px 22px rgba(124,175,214,0.28)",
-            }}
-          >
-            + New Task
-          </button>
-        </div>
+        <button onClick={() => openNewTask("To Do")} style={softBtn(theme.accent)} className="btnlift">
+          + New Task
+        </button>
       </div>
 
-      {/* Main Content */}
-      {view === "board" ? (
-        <div style={{ padding: 16, display: "flex", gap: 14, overflowX: "auto" }}>
+      {/* Board */}
+      {view === "board" && (
+        <div style={{ padding: 14, display: "flex", gap: 14, overflowX: "auto" }}>
           {COLUMNS.map((col) => {
-            const colTasks = sortedTasks(filteredTasks.filter((t) => t.column === col));
+            const colTasks = sortTasks(filteredTasks.filter((t) => t.column === col));
             return (
               <div
                 key={col}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDropColumn(col)}
                 style={{
-                  minWidth: 300,
-                  maxWidth: 380,
+                  minWidth: 320,
+                  maxWidth: 420,
                   flex: 1,
-                  background: theme.columnBg,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 16,
+                  background: "rgba(255,255,255,0.55)",
+                  border: theme.softBorder,
+                  borderRadius: 24,
                   padding: 14,
+                  boxShadow: "0 18px 40px rgba(0,0,0,0.06)"
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <h2 style={{ margin: 0, fontSize: 15 }}>{col}</h2>
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 999,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: darkMode ? "#2A3A58" : "#CFE2F6",
-                      fontSize: 12,
-                      fontWeight: 800,
-                    }}
-                  >
+                  <div style={{ fontWeight: 950, fontSize: 15 }}>{col}</div>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 999,
+                    background: "rgba(179,157,219,0.25)",
+                    display: "grid", placeItems: "center",
+                    fontWeight: 950
+                  }}>
                     {colTasks.length}
-                  </span>
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -838,115 +695,104 @@ export default function App() {
                     const dueToday = isDueToday(t);
                     const dueSoon = isDueSoon(t);
 
+                    const tint = PRIORITY_COLORS[t.priority] + "55"; // tinted background
+                    const border = PRIORITY_COLORS[t.priority];
+
                     return (
                       <div
                         key={t.id}
                         draggable
                         onDragStart={() => onDragStart(t.id)}
                         onClick={() => setViewingTaskId(expanded ? null : t.id)}
+                        className="lift"
                         style={{
-                          background: theme.cardBg,
-                          borderRadius: 14,
+                          background: tint,
+                          border: `1px solid rgba(0,0,0,0.03)`,
+                          borderLeft: `10px solid ${border}`,
+                          borderRadius: 22,
                           padding: 12,
-                          borderLeft: `6px solid ${PRIORITY_COLORS_PASTEL[t.priority] || theme.accent}`,
-                          border: overdue
-                            ? "1px solid #E36A6A"
-                            : dueToday
-                            ? "1px solid #E0A04E"
-                            : t.pinned
-                            ? `1px solid ${theme.accent}`
-                            : `1px solid transparent`,
-                          boxShadow: t.pinned ? "0 10px 22px rgba(124,175,214,0.22)" : "0 6px 14px rgba(0,0,0,0.06)",
-                          cursor: "pointer",
+                          boxShadow: theme.cardShadow,
+                          cursor: "pointer"
                         }}
                       >
                         {t.pinned && (
-                          <div style={{ fontSize: 11, fontWeight: 800, color: theme.accent, marginBottom: 4 }}>📌 PINNED</div>
-                        )}
-
-                        {/* Labels */}
-                        {t.labels?.length > 0 && (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                            {t.labels.map((l) => {
-                              const lo = LABELS.find((x) => x.name === l);
-                              return (
-                                <span
-                                  key={l}
-                                  style={{
-                                    background: lo?.color || "#9AA7B3",
-                                    color: "white",
-                                    padding: "2px 8px",
-                                    borderRadius: 999,
-                                    fontSize: 10,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  {l}
-                                </span>
-                              );
-                            })}
+                          <div style={{ fontSize: 11, fontWeight: 950, color: "#7B6AA9", marginBottom: 6 }}>
+                            📌 PINNED
                           </div>
                         )}
 
-                        <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 4 }}>{t.title}</div>
-
-                        {t.assignee && <div style={{ fontSize: 12, color: theme.subtext, marginBottom: 6 }}>👤 {t.assignee}</div>}
-
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-                          <Pill color={PRIORITY_COLORS_PASTEL[t.priority] || theme.accent}>
-                            {PRIORITY_EMOJI[t.priority]} {t.priority}
-                          </Pill>
-                          {overdue && <span style={{ fontSize: 11, fontWeight: 800, color: "#E36A6A" }}>⚠️ OVERDUE</span>}
-                          {dueToday && <span style={{ fontSize: 11, fontWeight: 800, color: "#E0A04E" }}>📌 DUE TODAY</span>}
-                          {dueSoon && <span style={{ fontSize: 11, fontWeight: 800, color: "#D7B04B" }}>🔔 DUE SOON</span>}
+                        {/* title */}
+                        <div style={{ fontSize: 14, fontWeight: 950, marginBottom: 6 }}>
+                          {t.title}
                         </div>
 
+                        {/* tags row */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                          <span style={{
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            background: "rgba(255,255,255,0.65)",
+                            fontWeight: 900,
+                            fontSize: 12
+                          }}>
+                            {PRIORITY_EMOJI[t.priority]} {t.priority}
+                          </span>
+
+                          {t.assignee && (
+                            <span style={{ fontSize: 12, fontWeight: 800, color: "#44546B" }}>
+                              👤 {t.assignee}
+                            </span>
+                          )}
+
+                          {overdue && <span style={{ fontSize: 11, fontWeight: 950, color: "#B5475A" }}>⚠️ OVERDUE</span>}
+                          {dueToday && <span style={{ fontSize: 11, fontWeight: 950, color: "#B1762B" }}>📌 TODAY</span>}
+                          {dueSoon && <span style={{ fontSize: 11, fontWeight: 950, color: "#8E7A2A" }}>🔔 SOON</span>}
+                        </div>
+
+                        {/* dates */}
                         {(t.startDate || t.dueDate) && (
-                          <div style={{ fontSize: 12, color: theme.subtext, marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: theme.subtext, marginBottom: 8 }}>
                             {t.startDate && <div>📅 Start: {t.startDate}</div>}
                             {t.dueDate && <div>⏰ Due: {t.dueDate}</div>}
                           </div>
                         )}
 
+                        {/* progress */}
                         {progress !== null && (
-                          <div style={{ marginBottom: 6 }}>
-                            <div style={{ height: 6, borderRadius: 999, background: darkMode ? "#2A3A58" : "#D3E6FB", overflow: "hidden" }}>
-                              <div
-                                style={{
-                                  width: `${progress}%`,
-                                  height: "100%",
-                                  background: progress === 100 ? "#53B37D" : theme.accent,
-                                }}
-                              />
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.65)", overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${progress}%`, background: "#7FB7D9" }} />
                             </div>
-                            <div style={{ fontSize: 11, color: theme.subtext, marginTop: 4 }}>{progress}% complete</div>
+                            <div style={{ fontSize: 11, fontWeight: 900, color: theme.subtext, marginTop: 4 }}>
+                              {progress}% complete
+                            </div>
                           </div>
                         )}
 
-                        {t.comments?.length > 0 && !expanded && (
-                          <div style={{ fontSize: 11, color: theme.subtext }}>💬 {t.comments.length} comment{t.comments.length === 1 ? "" : "s"}</div>
+                        {!expanded && (t.comments?.length > 0) && (
+                          <div style={{ fontSize: 11, fontWeight: 800, color: theme.subtext }}>
+                            💬 {t.comments.length} comment{t.comments.length === 1 ? "" : "s"}
+                          </div>
                         )}
 
+                        {/* Expanded details */}
                         {expanded && (
-                          <div style={{ marginTop: 10, borderTop: `1px solid ${theme.border}`, paddingTop: 10 }}>
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.7)" }}>
                             {t.notes && (
                               <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 4 }}>📝 Notes</div>
-                                <div style={{ fontSize: 13, color: theme.subtext, whiteSpace: "pre-wrap" }}>{t.notes}</div>
+                                <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 4 }}>📝 Notes</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#3A485B", whiteSpace: "pre-wrap" }}>{t.notes}</div>
                               </div>
                             )}
 
                             {t.checklist?.length > 0 && (
                               <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>☑️ Checklist</div>
+                                <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 6 }}>☑️ Checklist</div>
                                 {t.checklist.map((c, i) => (
                                   <div
                                     key={i}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleChecklist(t.id, i);
-                                    }}
-                                    style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, padding: "4px 0" }}
+                                    onClick={(e) => { e.stopPropagation(); toggleChecklist(t.id, i); }}
+                                    style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, padding: "4px 0", fontWeight: 750 }}
                                   >
                                     <span>{c.done ? "✅" : "⬜"}</span>
                                     <span style={{ textDecoration: c.done ? "line-through" : "none", color: c.done ? theme.subtext : theme.text }}>
@@ -957,132 +803,57 @@ export default function App() {
                               </div>
                             )}
 
-                            {/* Comments */}
-                            <div style={{ marginBottom: 10 }}>
-                              <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>💬 Comments</div>
-                              {(t.comments || []).map((c, i) => (
-                                <div key={i} style={{ background: darkMode ? "#13213A" : "#F4FAFF", border: `1px solid ${theme.border}`, borderRadius: 10, padding: 10, marginBottom: 6 }}>
-                                  <div style={{ fontSize: 13 }}>{c.text}</div>
-                                  <div style={{ fontSize: 11, color: theme.subtext, marginTop: 4 }}>{c.date}</div>
-                                </div>
-                              ))}
-
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                style={{ display: "flex", gap: 8, alignItems: "center" }}
-                              >
-                                <input
-                                  placeholder="Add a comment..."
-                                  style={{
-                                    flex: 1,
-                                    padding: "8px 10px",
-                                    borderRadius: 10,
-                                    border: `1px solid ${theme.inputBorder}`,
-                                    background: theme.inputBg,
-                                    color: theme.text,
-                                  }}
-                                  value={t.__draftComment || ""}
-                                  onChange={() => {}}
-                                  // We'll use a simple prompt button below to keep this file shorter/safer
-                                  readOnly
-                                />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const msg = prompt("Add comment:");
-                                    if (msg) addComment(t.id, msg);
-                                  }}
-                                  style={{
-                                    border: "none",
-                                    borderRadius: 10,
-                                    padding: "8px 10px",
-                                    background: theme.accent,
-                                    color: "white",
-                                    cursor: "pointer",
-                                    fontWeight: 900,
-                                  }}
-                                >
-                                  + 💬
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Move buttons (great for phone) */}
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                               {COLUMNS.filter((c) => c !== t.column).map((c) => (
                                 <button
                                   key={c}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    moveTask(t.id, c);
-                                  }}
+                                  onClick={(e) => { e.stopPropagation(); moveTask(t.id, c); }}
                                   style={{
-                                    border: `1px solid ${theme.accent}`,
-                                    background: "transparent",
-                                    color: theme.accent,
-                                    padding: "6px 10px",
-                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "rgba(255,255,255,0.75)",
+                                    borderRadius: 999,
+                                    padding: "8px 10px",
                                     cursor: "pointer",
+                                    fontWeight: 900,
                                     fontSize: 12,
-                                    fontWeight: 800,
+                                    color: "#4A5568"
                                   }}
+                                  className="btnlift"
                                 >
                                   → {c}
                                 </button>
                               ))}
                             </div>
 
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  togglePin(t.id);
-                                }}
-                                style={{
-                                  border: "none",
-                                  borderRadius: 10,
-                                  padding: "8px 10px",
-                                  cursor: "pointer",
-                                  fontWeight: 900,
-                                  color: "white",
-                                  background: t.pinned ? "#E0A04E" : "#8FA6BB",
-                                }}
+                                onClick={(e) => { e.stopPropagation(); togglePin(t.id); }}
+                                style={softBtn(t.pinned ? theme.accent2 : theme.accent)}
+                                className="btnlift"
                               >
                                 {t.pinned ? "📌 Unpin" : "📌 Pin"}
                               </button>
 
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditTask(t);
-                                }}
-                                style={{
-                                  border: "none",
-                                  borderRadius: 10,
-                                  padding: "8px 10px",
-                                  cursor: "pointer",
-                                  fontWeight: 900,
-                                  color: "white",
-                                  background: theme.accent,
-                                }}
+                                onClick={(e) => { e.stopPropagation(); openEditTask(t); }}
+                                style={softBtn("#7FB7D9")}
+                                className="btnlift"
                               >
                                 ✏️ Edit
                               </button>
 
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeTask(t.id);
-                                }}
-                                style={{
-                                  border: "none",
-                                  borderRadius: 10,
-                                  padding: "8px 10px",
-                                  cursor: "pointer",
-                                  fontWeight: 900,
-                                  color: "white",
-                                  background: "#E36A6A",
-                                }}
+                                onClick={(e) => { e.stopPropagation(); addComment(t.id); }}
+                                style={softBtn("#F0A9C2")}
+                                className="btnlift"
+                              >
+                                💬 Comment
+                              </button>
+
+                              <button
+                                onClick={(e) => { e.stopPropagation(); removeTask(t.id); }}
+                                style={softBtn("#D36C7D")}
+                                className="btnlift"
                               >
                                 🗑️ Delete
                               </button>
@@ -1098,15 +869,16 @@ export default function App() {
                   onClick={() => openNewTask(col)}
                   style={{
                     width: "100%",
-                    marginTop: 10,
-                    padding: 10,
-                    borderRadius: 14,
-                    border: `2px dashed ${theme.inputBorder}`,
-                    background: "transparent",
+                    marginTop: 12,
+                    padding: 12,
+                    borderRadius: 22,
+                    border: "2px dashed rgba(179,157,219,0.55)",
+                    background: "rgba(255,255,255,0.55)",
                     cursor: "pointer",
-                    fontWeight: 900,
-                    color: theme.subtext,
+                    fontWeight: 950,
+                    color: "#6B7A90"
                   }}
+                  className="btnlift"
                 >
                   + Add Task
                 </button>
@@ -1114,180 +886,118 @@ export default function App() {
             );
           })}
         </div>
-      ) : (
-        /* Month View */
-        <div style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                onClick={() => setMonthCursor((d) => addMonths(d, -1))}
-                style={{
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
-                  borderRadius: 12,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                ◀
-              </button>
+      )}
 
+      {/* Month View */}
+      {view === "month" && (
+        <div style={{ padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button style={pillBtn(false)} className="btnlift" onClick={() => setMonthCursor((d) => addMonths(d, -1))}>◀</button>
               <div style={{ fontSize: 18, fontWeight: 950 }}>
                 {monthCursor.toLocaleString(undefined, { month: "long", year: "numeric" })}
               </div>
-
+              <button style={pillBtn(false)} className="btnlift" onClick={() => setMonthCursor((d) => addMonths(d, +1))}>▶</button>
               <button
-                onClick={() => setMonthCursor((d) => addMonths(d, +1))}
-                style={{
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
-                  borderRadius: 12,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                ▶
-              </button>
-
-              <button
+                style={softBtn("#7FB7D9")}
+                className="btnlift"
                 onClick={() => {
                   setMonthCursor(startOfMonth(new Date()));
                   setSelectedDay(yyyyMmDd(new Date()));
-                }}
-                style={{
-                  border: "none",
-                  background: theme.accent,
-                  color: "white",
-                  borderRadius: 12,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  fontWeight: 950,
                 }}
               >
                 Today
               </button>
             </div>
 
-            <button
-              onClick={() => openNewTask("To Do")}
-              style={{
-                border: "none",
-                background: theme.accent,
-                color: "white",
-                borderRadius: 12,
-                padding: "10px 14px",
-                cursor: "pointer",
-                fontWeight: 950,
-                boxShadow: "0 10px 22px rgba(124,175,214,0.28)",
-              }}
-            >
+            <button style={softBtn(theme.accent)} className="btnlift" onClick={() => openNewTask("To Do")}>
               + New Task
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} style={{ fontSize: 12, fontWeight: 900, color: theme.subtext, padding: "6px 8px" }}>
-                {d}
-              </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+              <div key={d} style={{ fontWeight: 950, fontSize: 12, color: theme.subtext, padding: "0 8px" }}>{d}</div>
             ))}
 
             {cells.map((c, idx) => {
               const key = yyyyMmDd(c.date);
               const dayTasks = tasksByDueDate.get(key) || [];
-              const count = dayTasks.length;
               const selected = key === selectedDay;
 
               return (
                 <div
                   key={idx}
                   onClick={() => setSelectedDay(key)}
+                  className="lift"
                   style={{
-                    background: selected ? (darkMode ? "#203455" : "#CFE6FF") : theme.cardBg,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 14,
-                    padding: 10,
-                    minHeight: 84,
+                    background: selected ? "rgba(179,157,219,0.25)" : "rgba(255,255,255,0.70)",
+                    border: theme.softBorder,
+                    borderRadius: 22,
+                    padding: 12,
+                    minHeight: 92,
                     cursor: "pointer",
                     opacity: c.inMonth ? 1 : 0.45,
-                    boxShadow: selected ? "0 12px 24px rgba(0,0,0,0.10)" : "0 6px 12px rgba(0,0,0,0.05)",
-                    position: "relative",
+                    boxShadow: theme.cardShadow
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontWeight: 950, fontSize: 13 }}>
+                    <div style={{ fontWeight: 950 }}>
                       {c.date.getDate()}
-                      {c.isToday ? <span style={{ marginLeft: 6, fontSize: 11, color: theme.accent, fontWeight: 950 }}>●</span> : null}
+                      {c.isToday ? <span style={{ marginLeft: 6, color: theme.accent2 }}>●</span> : null}
                     </div>
-                    {count > 0 && (
-                      <span
-                        style={{
-                          background: theme.accent,
-                          color: "white",
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 900,
-                        }}
-                      >
-                        {count}
-                      </span>
+                    {dayTasks.length > 0 && (
+                      <div style={{
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.75)",
+                        fontWeight: 950,
+                        fontSize: 12
+                      }}>
+                        {dayTasks.length}
+                      </div>
                     )}
                   </div>
 
-                  {/* show up to 2 task titles as preview */}
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                     {dayTasks.slice(0, 2).map((t) => (
                       <div
                         key={t.id}
                         style={{
-                          fontSize: 11,
-                          color: theme.text,
-                          borderLeft: `4px solid ${PRIORITY_COLORS_PASTEL[t.priority] || theme.accent}`,
+                          borderLeft: `8px solid ${PRIORITY_COLORS[t.priority]}`,
                           paddingLeft: 8,
+                          fontSize: 11,
+                          fontWeight: 900,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          fontWeight: 800,
+                          textOverflow: "ellipsis"
                         }}
                         title={t.title}
                       >
                         {t.title}
                       </div>
                     ))}
-                    {count > 2 && <div style={{ fontSize: 11, color: theme.subtext }}>+ {count - 2} more</div>}
+                    {dayTasks.length > 2 && (
+                      <div style={{ fontSize: 11, fontWeight: 800, color: theme.subtext }}>
+                        + {dayTasks.length - 2} more
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Selected day details */}
-          <div style={{ marginTop: 16, background: theme.toolbarBg, border: `1px solid ${theme.border}`, borderRadius: 16, padding: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-              <div style={{ fontSize: 15, fontWeight: 950 }}>
-                Tasks due on <span style={{ color: theme.accent }}>{selectedDay}</span>
-              </div>
-              <div style={{ fontSize: 12, color: theme.subtext }}>
-                Tip: month view shows tasks by <b>Due Date</b>
+          <div style={{ marginTop: 16, background: "rgba(255,255,255,0.75)", border: theme.softBorder, borderRadius: 24, padding: 14, boxShadow: theme.cardShadow }}>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontWeight: 950 }}>Tasks due on <span style={{ color: theme.accent }}>{selectedDay}</span></div>
+              <div style={{ fontSize: 12, color: theme.subtext, fontWeight: 700 }}>
+                Month view uses <b>Due Date</b>
               </div>
             </div>
 
             {selectedDayTasks.length === 0 ? (
-              <div style={{ marginTop: 10, color: theme.subtext }}>No tasks due on this day.</div>
+              <div style={{ marginTop: 10, color: theme.subtext, fontWeight: 800 }}>No tasks due this day.</div>
             ) : (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                 {selectedDayTasks.map((t) => {
@@ -1295,58 +1005,36 @@ export default function App() {
                   return (
                     <div
                       key={t.id}
+                      className="lift"
                       style={{
-                        background: theme.cardBg,
-                        borderRadius: 14,
-                        border: `1px solid ${theme.border}`,
+                        background: PRIORITY_COLORS[t.priority] + "55",
+                        borderRadius: 22,
                         padding: 12,
-                        borderLeft: `6px solid ${PRIORITY_COLORS_PASTEL[t.priority] || theme.accent}`,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        alignItems: "center",
+                        borderLeft: `10px solid ${PRIORITY_COLORS[t.priority]}`,
+                        boxShadow: theme.cardShadow
                       }}
                     >
-                      <div style={{ minWidth: 240, flex: 1 }}>
-                        <div style={{ fontWeight: 950, marginBottom: 4 }}>{t.title}</div>
-                        <div style={{ fontSize: 12, color: theme.subtext }}>
-                          {bucketName} • {t.column} • {PRIORITY_EMOJI[t.priority]} {t.priority}
-                        </div>
-                        {t.assignee && <div style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}>👤 {t.assignee}</div>}
+                      <div style={{ fontWeight: 950 }}>{t.title}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: theme.subtext, marginTop: 4 }}>
+                        {bucketName} • {t.column} • {PRIORITY_EMOJI[t.priority]} {t.priority}
                       </div>
 
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                         <button
+                          style={softBtn("#7FB7D9")}
+                          className="btnlift"
                           onClick={() => {
                             setCurrentBucketId(t.bucketId);
                             setView("board");
                             setViewingTaskId(t.id);
                           }}
-                          style={{
-                            border: "none",
-                            borderRadius: 12,
-                            padding: "8px 10px",
-                            background: theme.accent,
-                            color: "white",
-                            cursor: "pointer",
-                            fontWeight: 950,
-                          }}
                         >
                           Open on Board
                         </button>
-
                         <button
+                          style={softBtn(theme.accent)}
+                          className="btnlift"
                           onClick={() => openEditTask(t)}
-                          style={{
-                            border: `1px solid ${theme.accent}`,
-                            borderRadius: 12,
-                            padding: "8px 10px",
-                            background: "transparent",
-                            color: theme.accent,
-                            cursor: "pointer",
-                            fontWeight: 950,
-                          }}
                         >
                           Edit
                         </button>
@@ -1360,38 +1048,27 @@ export default function App() {
         </div>
       )}
 
-      {/* ---------------------------
-          Task Modal
-         -------------------------- */}
+      {/* Task Modal */}
       {showTaskModal && (
         <div
           onClick={() => setShowTaskModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 16,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: "100%",
-              maxWidth: 560,
-              background: theme.cardBg,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 18,
-              padding: 18,
+              maxWidth: 640,
+              background: "rgba(255,255,255,0.92)",
+              border: theme.softBorder,
+              borderRadius: 28,
+              padding: 16,
+              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
               maxHeight: "90vh",
-              overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+              overflowY: "auto"
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>
               {editingTaskId ? "✏️ Edit Task" : "➕ New Task"}
             </div>
 
@@ -1399,36 +1076,16 @@ export default function App() {
             <input
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              style={{
-                width: "100%",
-                marginTop: 6,
-                marginBottom: 12,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: `1px solid ${theme.inputBorder}`,
-                background: theme.inputBg,
-                color: theme.text,
-                fontSize: 14,
-              }}
-              placeholder="What needs to be done?"
+              placeholder="What are we doing, bestie?"
+              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 800 }}
             />
 
             <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Assigned To</label>
             <input
               value={form.assignee}
               onChange={(e) => setForm((f) => ({ ...f, assignee: e.target.value }))}
-              style={{
-                width: "100%",
-                marginTop: 6,
-                marginBottom: 12,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: `1px solid ${theme.inputBorder}`,
-                background: theme.inputBg,
-                color: theme.text,
-                fontSize: 14,
-              }}
-              placeholder="Name (optional)"
+              placeholder="Who’s owning this?"
+              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 800 }}
             />
 
             <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Notes</label>
@@ -1436,175 +1093,66 @@ export default function App() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={3}
-              style={{
-                width: "100%",
-                marginTop: 6,
-                marginBottom: 12,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: `1px solid ${theme.inputBorder}`,
-                background: theme.inputBg,
-                color: theme.text,
-                fontSize: 14,
-                resize: "vertical",
-              }}
-              placeholder="Details, links, notes..."
+              placeholder="Add cute notes + details…"
+              style={{ width: "100%", marginTop: 6, marginBottom: 10, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 750, resize: "vertical" }}
             />
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-              <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Priority</label>
                 <select
                   value={form.priority}
                   onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                  style={{
-                    width: "100%",
-                    marginTop: 6,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: `1px solid ${theme.inputBorder}`,
-                    background: theme.inputBg,
-                    color: theme.text,
-                    fontSize: 14,
-                  }}
+                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 900 }}
                 >
-                  <option value="Urgent">🔴 Urgent</option>
-                  <option value="High">🟠 High</option>
-                  <option value="Medium">🟡 Medium</option>
-                  <option value="Low">🟢 Low</option>
+                  <option value="Urgent">💗 Urgent</option>
+                  <option value="High">❤️ High</option>
+                  <option value="Medium">💜 Medium</option>
+                  <option value="Low">💚 Low</option>
                 </select>
               </div>
 
-              <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Column</label>
                 <select
                   value={form.column}
                   onChange={(e) => setForm((f) => ({ ...f, column: e.target.value }))}
-                  style={{
-                    width: "100%",
-                    marginTop: 6,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: `1px solid ${theme.inputBorder}`,
-                    background: theme.inputBg,
-                    color: theme.text,
-                    fontSize: 14,
-                  }}
+                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 900 }}
                 >
-                  {COLUMNS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                  {COLUMNS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-              <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Start Date</label>
                 <input
                   type="date"
                   value={form.startDate}
                   onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                  style={{
-                    width: "100%",
-                    marginTop: 6,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: `1px solid ${theme.inputBorder}`,
-                    background: theme.inputBg,
-                    color: theme.text,
-                    fontSize: 14,
-                  }}
+                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
                 />
               </div>
-
-              <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Due Date</label>
                 <input
                   type="date"
                   value={form.dueDate}
                   onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  style={{
-                    width: "100%",
-                    marginTop: 6,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: `1px solid ${theme.inputBorder}`,
-                    background: theme.inputBg,
-                    color: theme.text,
-                    fontSize: 14,
-                  }}
+                  style={{ width: "100%", marginTop: 6, padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
                 />
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>📌 Pin</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
               <button
                 onClick={() => setForm((f) => ({ ...f, pinned: !f.pinned }))}
-                style={{
-                  border: "none",
-                  borderRadius: 12,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                  background: form.pinned ? "#E0A04E" : (darkMode ? "#2A3A58" : "#D3E6FB"),
-                  color: form.pinned ? "white" : theme.text,
-                }}
+                style={softBtn(form.pinned ? theme.accent2 : theme.accent)}
+                className="btnlift"
               >
-                {form.pinned ? "Pinned" : "Not pinned"}
+                {form.pinned ? "📌 Pinned" : "📌 Pin"}
               </button>
-            </div>
-
-            <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Labels</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, marginBottom: 14 }}>
-              {LABELS.map((l) => {
-                const selected = form.labels.includes(l.name);
-                return (
-                  <button
-                    key={l.name}
-                    onClick={() => {
-                      setForm((f) => ({
-                        ...f,
-                        labels: selected ? f.labels.filter((x) => x !== l.name) : [...f.labels, l.name],
-                      }));
-                    }}
-                    style={{
-                      border: "none",
-                      borderRadius: 999,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                      fontWeight: 900,
-                      fontSize: 12,
-                      background: selected ? l.color : (darkMode ? "#2A3A58" : "#E5F2FF"),
-                      color: selected ? "white" : theme.text,
-                    }}
-                  >
-                    {l.name}
-                  </button>
-                );
-              })}
-            </div>
-
-            <label style={{ fontSize: 12, fontWeight: 900, color: theme.subtext }}>Checklist</label>
-            <div style={{ marginTop: 8, marginBottom: 12 }}>
-              {(form.checklist || []).map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14 }}>{c.done ? "✅" : "⬜"}</span>
-                  <span style={{ flex: 1, fontSize: 13, color: c.done ? theme.subtext : theme.text }}>
-                    {c.text}
-                  </span>
-                  <button
-                    onClick={() => setForm((f) => ({ ...f, checklist: f.checklist.filter((_, idx) => idx !== i) }))}
-                    style={{ border: "none", background: "transparent", cursor: "pointer", color: "#E36A6A", fontWeight: 900 }}
-                    title="Remove"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
 
               <button
                 onClick={() => {
@@ -1612,47 +1160,22 @@ export default function App() {
                   if (!txt) return;
                   setForm((f) => ({ ...f, checklist: [...(f.checklist || []), { text: txt, done: false }] }));
                 }}
-                style={{
-                  border: `1px dashed ${theme.inputBorder}`,
-                  background: "transparent",
-                  color: theme.subtext,
-                  borderRadius: 12,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
+                style={softBtn("#7FB7D9")}
+                className="btnlift"
               >
-                + Add checklist item
+                + Checklist item
               </button>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
                 onClick={() => setShowTaskModal(false)}
-                style={{
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
+                style={{ ...pillBtn(false), padding: "12px 16px" }}
+                className="btnlift"
               >
                 Cancel
               </button>
-              <button
-                onClick={upsertTask}
-                style={{
-                  border: "none",
-                  background: theme.accent,
-                  color: "white",
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                  cursor: "pointer",
-                  fontWeight: 950,
-                }}
-              >
+              <button onClick={upsertTask} style={softBtn(theme.accent)} className="btnlift">
                 {editingTaskId ? "Save Changes" : "Create Task"}
               </button>
             </div>
@@ -1660,130 +1183,66 @@ export default function App() {
         </div>
       )}
 
-      {/* ---------------------------
-          Bucket Modal
-         -------------------------- */}
+      {/* Bucket Modal */}
       {showBucketModal && (
         <div
           onClick={() => setShowBucketModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 16,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: "100%",
               maxWidth: 420,
-              background: theme.cardBg,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 18,
-              padding: 18,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+              background: "rgba(255,255,255,0.92)",
+              border: theme.softBorder,
+              borderRadius: 28,
+              padding: 16,
+              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>
               {editingBucketId ? "✏️ Rename Bucket" : "📂 New Bucket"}
             </div>
-
             <input
               value={bucketFormName}
               onChange={(e) => setBucketFormName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveBucket();
-              }}
+              onKeyDown={(e) => e.key === "Enter" && saveBucket()}
               placeholder="Bucket name"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: `1px solid ${theme.inputBorder}`,
-                background: theme.inputBg,
-                color: theme.text,
-                fontSize: 14,
-                marginBottom: 14,
-              }}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 18, border: theme.softBorder, background: theme.inputBg, fontWeight: 850 }}
             />
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                onClick={() => setShowBucketModal(false)}
-                style={{
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveBucket}
-                style={{
-                  border: "none",
-                  background: theme.accent,
-                  color: "white",
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                  cursor: "pointer",
-                  fontWeight: 950,
-                }}
-              >
-                {editingBucketId ? "Save" : "Create Bucket"}
-              </button>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+              <button onClick={() => setShowBucketModal(false)} style={{ ...pillBtn(false), padding: "12px 16px" }} className="btnlift">Cancel</button>
+              <button onClick={saveBucket} style={softBtn(theme.accent)} className="btnlift">{editingBucketId ? "Save" : "Create"}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ---------------------------
-          Sync Modal
-         -------------------------- */}
+      {/* Sync Modal */}
       {showSyncModal && (
         <div
           onClick={() => setShowSyncModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 16,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "grid", placeItems: "center", zIndex: 1000, padding: 14 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: "100%",
-              maxWidth: 620,
-              background: theme.cardBg,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 18,
-              padding: 18,
+              maxWidth: 720,
+              background: "rgba(255,255,255,0.92)",
+              border: theme.softBorder,
+              borderRadius: 28,
+              padding: 16,
+              boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
               maxHeight: "90vh",
-              overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+              overflowY: "auto"
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>🔄 Sync Between Devices</div>
+            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 10 }}>🔄 Sync Between Devices</div>
 
-            <div style={{ background: darkMode ? "#13213A" : "#F4FAFF", border: `1px solid ${theme.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
-              <div style={{ fontWeight: 950, marginBottom: 6 }}>📤 Export from THIS device</div>
-              <div style={{ fontSize: 12, color: theme.subtext, marginBottom: 8 }}>
-                Copy this code and paste it into the Import box on your other device.
-              </div>
+            <div style={{ background: "rgba(247, 169, 196, 0.12)", border: theme.softBorder, borderRadius: 22, padding: 12, marginBottom: 10 }}>
+              <div style={{ fontWeight: 950, marginBottom: 6 }}>📤 Export</div>
               <textarea
                 readOnly
                 value={syncExportCode}
@@ -1791,101 +1250,55 @@ export default function App() {
                 style={{
                   width: "100%",
                   height: 120,
-                  padding: 10,
-                  borderRadius: 12,
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
+                  padding: 12,
+                  borderRadius: 18,
+                  border: theme.softBorder,
+                  background: "rgba(255,255,255,0.85)",
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 11,
-                  resize: "none",
+                  fontSize: 11
                 }}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button
-                  onClick={copySyncCode}
-                  style={{
-                    border: "none",
-                    background: theme.accent,
-                    color: "white",
-                    borderRadius: 12,
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                    fontWeight: 950,
-                  }}
-                >
-                  📋 Copy Code
-                </button>
+                <button onClick={copySyncCode} style={softBtn(theme.accent2)} className="btnlift">📋 Copy Code</button>
               </div>
             </div>
 
-            <div style={{ background: darkMode ? "#152B1E" : "#F2FFF6", border: `1px solid ${theme.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
-              <div style={{ fontWeight: 950, marginBottom: 6 }}>📥 Import on THIS device</div>
-              <div style={{ fontSize: 12, color: theme.subtext, marginBottom: 8 }}>
-                Paste the code from your other device here, then import.
-              </div>
-
+            <div style={{ background: "rgba(167, 220, 195, 0.12)", border: theme.softBorder, borderRadius: 22, padding: 12, marginBottom: 10 }}>
+              <div style={{ fontWeight: 950, marginBottom: 6 }}>📥 Import</div>
               <textarea
                 value={syncImportCode}
                 onChange={(e) => setSyncImportCode(e.target.value)}
-                placeholder="Paste sync code here..."
+                placeholder="Paste code here…"
                 style={{
                   width: "100%",
                   height: 120,
-                  padding: 10,
-                  borderRadius: 12,
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
+                  padding: 12,
+                  borderRadius: 18,
+                  border: theme.softBorder,
+                  background: "rgba(255,255,255,0.85)",
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 11,
-                  resize: "none",
+                  fontSize: 11
                 }}
               />
-
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button
-                  onClick={importSyncCode}
-                  style={{
-                    border: "none",
-                    background: "#53B37D",
-                    color: "white",
-                    borderRadius: 12,
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                    fontWeight: 950,
-                  }}
-                >
-                  📥 Import Tasks
-                </button>
+                <button onClick={importSync} style={softBtn(theme.accent3)} className="btnlift">📥 Import Tasks</button>
               </div>
             </div>
 
             {syncMessage && (
-              <div style={{ padding: 10, borderRadius: 12, background: darkMode ? "#2A3A58" : "#E6F3FF", color: theme.text, fontWeight: 900 }}>
+              <div style={{ padding: 12, borderRadius: 18, background: "rgba(179,157,219,0.18)", border: theme.softBorder, fontWeight: 900 }}>
                 {syncMessage}
               </div>
             )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button
-                onClick={() => setShowSyncModal(false)}
-                style={{
-                  border: `1px solid ${theme.inputBorder}`,
-                  background: theme.inputBg,
-                  color: theme.text,
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Close
-              </button>
+              <button onClick={() => setShowSyncModal(false)} style={{ ...pillBtn(false), padding: "12px 16px" }} className="btnlift">Close</button>
             </div>
           </div>
         </div>
       )}
+
+      <div style={{ height: 22 }} />
     </div>
   );
 }
